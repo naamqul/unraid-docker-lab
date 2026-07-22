@@ -129,13 +129,21 @@ it are unreliable across operating systems and Tailscale.
    ```
 
 6. Redeploy the Komodo and AI stacks so `komodo` and `gluetun` join
-   `caddy-backend`, then deploy the Caddy stack. In Compose Manager Plus,
-   register Caddy as an indirect stack using:
+   `caddy-backend`, then import the running Caddy project into Komodo as a
+   Stack. Use these settings:
 
    ```text
-   Compose: /mnt/user/appdata/unraid-docker-lab/komodo/stacks/caddy/compose.yaml
-   Env:     /mnt/user/appdata/unraid-docker-lab/komodo/stacks/caddy/.env
+   Name / project name: caddy
+   Server:              Arc
+   Run directory:       /mnt/user/appdata/unraid-docker-lab/komodo/stacks/caddy
+   Compose file:        compose.yaml
    ```
+
+   In the Stack's Environment field, copy the three values from
+   `caddy/.env.example`. Komodo writes that field to `.env` and passes it to
+   Compose. The project name must remain `caddy` so Komodo imports the running
+   project instead of creating a second one. Do not also register Caddy in
+   Compose Manager Plus; one stack should have exactly one ongoing owner.
 
 7. Validate Caddy's configuration on Arc, then test the macvlan address from
    another LAN client. The Unraid host itself cannot directly reach its own
