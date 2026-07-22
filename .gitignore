@@ -15,7 +15,6 @@ secrets/
 *.pfx
 
 # Mutable application state (keep this in appdata, outside Git)
-open-webui/data/
 komodo/repos/
 komodo/builds/
 komodo/action-cache/

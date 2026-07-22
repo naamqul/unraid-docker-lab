@@ -75,6 +75,8 @@ Komodo can manage the application stacks below `komodo/stacks/`.
   `/mnt/user/appdata/komodo-state` and must be included in appdata backups.
 - Komodo database exports are written to
   `/mnt/user/appdata/komodo-state/backups`.
+- Open WebUI data is stored outside the repository at
+  `/mnt/user/appdata/open-webui-state/data`.
 - The real `.env` is intentionally excluded from Git and must be backed up
   securely through a separate encrypted mechanism.
 
@@ -235,9 +237,9 @@ existing project rather than creating a second one. Once an authenticated
 Komodo CLI profile exists, deployments can be run from Core with:
 
 ```bash
-docker exec komodo km deploy stack ai -y
-docker exec komodo km deploy stack caddy -y
-docker exec komodo km deploy stack jellyfin -y
+docker exec komodo km execute -y deploy-stack ai
+docker exec komodo km execute -y deploy-stack caddy
+docker exec komodo km execute -y deploy-stack jellyfin
 ```
 
 The `general` directory is currently only a placeholder and has no deployable
