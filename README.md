@@ -13,7 +13,7 @@ komodo/
 ├── .env.example       # Tracked template
 └── stacks/            # Stacks managed by Komodo Periphery
     ├── ai/
-    ├── caddy/
+    ├── caddy/          # LAN reverse proxy and its Caddyfile
     └── general/
 ```
 
@@ -75,3 +75,127 @@ Komodo can manage the application stacks below `komodo/stacks/`.
   `/mnt/user/appdata/komodo-state/backups`.
 - The real `.env` is intentionally excluded from Git and must be backed up
   securely through a separate encrypted mechanism.
+
+## Reverse proxy and remote access
+
+Caddy owns `192.168.50.52` on Docker's Unraid-managed `br0` network. It also
+joins the external `caddy-backend` bridge, which lets it reach application
+containers directly without sending backend traffic through host-published
+ports.
+
+Arc advertises `192.168.50.0/24` as a Tailscale subnet route. After approving
+that route in the Tailscale admin console, a remote Tailscale client can reach
+the same `192.168.50.52` address used on the LAN. Linux clients must also run
+`tailscale set --accept-routes=true`; Windows, macOS, iOS, and Android accept
+subnet routes by default.
+
+The configured private names are:
+
+| Name | Backend |
+| --- | --- |
+| `caddy.arc.home.arpa` | Caddy health response |
+| `komodo.arc.home.arpa` | `komodo:9120` |
+| `open-webui.arc.home.arpa` | `gluetun:8080` |
+| `hermes.arc.home.arpa` | `gluetun:9119` |
+| `hermes-api.arc.home.arpa` | `gluetun:8642` |
+
+`home.arpa` is used deliberately. Do not use subdomains of `arc.local` here:
+`.local` is reserved for multicast DNS, and wildcard/unicast records beneath
+it are unreliable across operating systems and Tailscale.
+
+### One-time setup
+
+1. Reserve `192.168.50.52` for MAC `02:42:c0:a8:32:34` in ASUS DHCP, or
+   exclude the address from the dynamic pool. Compose assigns this address
+   statically and does not request a DHCP lease.
+2. In NextDNS Rewrites (or another DNS server used by both LAN and Tailscale
+   clients), point every name in the table above to `192.168.50.52`.
+3. In the Tailscale admin console, open Arc's route settings and approve
+   `192.168.50.0/24`. Advertising a route on Arc does not activate it until it
+   is approved, unless an `autoApprovers` policy already covers it.
+4. Create the shared backend network once:
+
+   ```bash
+   docker network create caddy-backend
+   ```
+
+5. Copy the Caddy environment template and create its state directories:
+
+   ```bash
+   cd /mnt/user/appdata/unraid-docker-lab/komodo/stacks/caddy
+   cp .env.example .env
+   mkdir -p /mnt/user/appdata/caddy-state/data
+   mkdir -p /mnt/user/appdata/caddy-state/config
+   ```
+
+6. Redeploy the Komodo and AI stacks so `komodo` and `gluetun` join
+   `caddy-backend`, then deploy the Caddy stack. In Compose Manager Plus,
+   register Caddy as an indirect stack using:
+
+   ```text
+   Compose: /mnt/user/appdata/unraid-docker-lab/komodo/stacks/caddy/compose.yaml
+   Env:     /mnt/user/appdata/unraid-docker-lab/komodo/stacks/caddy/.env
+   ```
+
+7. Validate Caddy's configuration on Arc, then test the macvlan address from
+   another LAN client. The Unraid host itself cannot directly reach its own
+   `br0` macvlan containers by design.
+
+   ```bash
+   docker exec caddy caddy validate --config /etc/caddy/Caddyfile
+   curl http://192.168.50.52
+   curl -H 'Host: komodo.arc.home.arpa' http://192.168.50.52
+   ```
+
+The Caddyfile currently uses private HTTP. Tailscale encrypts traffic between
+the remote client and Arc, but LAN traffic and Arc's final hop to Caddy remain
+plain HTTP. For end-to-end HTTPS, either use a real domain with publicly
+trusted certificates or add `tls internal` to each site and install Caddy's
+root CA on every client. A Dockerized Caddy cannot install its CA into client
+trust stores automatically.
+
+### Add another proxied application manually
+
+For an ordinary container:
+
+1. Declare `caddy-backend` as an external network in that stack and attach the
+   web service to it:
+
+   ```yaml
+   services:
+     example:
+       networks:
+         - default
+         - caddy-backend
+
+   networks:
+     caddy-backend:
+       name: caddy-backend
+       external: true
+   ```
+
+2. Add a site to `komodo/stacks/caddy/Caddyfile` using the Compose service
+   name and the container's internal port:
+
+   ```caddyfile
+   http://example.arc.home.arpa {
+       reverse_proxy example:8080
+   }
+   ```
+
+3. Add a DNS rewrite from `example.arc.home.arpa` to `192.168.50.52`.
+4. Redeploy the application, validate the Caddyfile, and gracefully reload it:
+
+   ```bash
+   docker exec caddy caddy validate --config /etc/caddy/Caddyfile
+   docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+   ```
+
+For a container using `network_mode: service:gluetun`, do not attach that
+container separately. Attach `gluetun` to `caddy-backend`, add the application's
+listening port to Gluetun's `FIREWALL_INPUT_PORTS`, and proxy to
+`gluetun:<internal-port>` as the existing Open WebUI and Hermes entries do.
+
+Host-published ports on Gluetun are currently retained as a recovery path.
+After Open WebUI and Hermes work through Caddy, those `ports:` entries can be
+removed to make Caddy the only LAN entry point.

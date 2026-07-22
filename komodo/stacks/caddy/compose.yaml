@@ -1,0 +1,28 @@
+name: caddy
+
+services:
+  caddy:
+    container_name: caddy
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      CADDY_LAN_IP: ${CADDY_LAN_IP}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CADDY_STATE_PATH}/data:/data
+      - ${CADDY_STATE_PATH}/config:/config
+    networks:
+      lan:
+        ipv4_address: ${CADDY_LAN_IP}
+        mac_address: ${CADDY_LAN_MAC}
+      caddy-backend:
+    labels:
+      net.unraid.docker.webui: "http://${CADDY_LAN_IP}/"
+
+networks:
+  lan:
+    name: br0
+    external: true
+  caddy-backend:
+    name: caddy-backend
+    external: true
