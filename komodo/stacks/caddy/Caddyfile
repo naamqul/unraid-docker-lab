@@ -24,6 +24,49 @@ jellyfin.arc.home.arpa {
 	reverse_proxy jellyfin:8096
 }
 
+unraid.arc.home.arpa {
+	import private_tls
+	reverse_proxy unraid-webui-bridge:8080 {
+		header_down Location ^http://[^/]+(.*)$ https://unraid.arc.home.arpa$1
+	}
+}
+
+home.arc.home.arpa, homepage.arc.home.arpa {
+	import private_tls
+	reverse_proxy homepage:3000
+}
+
+beszel.arc.home.arpa {
+	import private_tls
+	request_body {
+		max_size 10MB
+	}
+	reverse_proxy beszel:8090 {
+		transport http {
+			read_timeout 360s
+		}
+	}
+}
+
+jdownloader.arc.home.arpa {
+	import private_tls
+	reverse_proxy https://general-gluetun:5800 {
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+}
+
+filebrowser.arc.home.arpa {
+	import private_tls
+	reverse_proxy filebrowser:80
+}
+
+searxng.arc.home.arpa {
+	import private_tls
+	reverse_proxy general-gluetun:8080
+}
+
 open-webui.arc.home.arpa {
 	import private_tls
 	reverse_proxy gluetun:8080

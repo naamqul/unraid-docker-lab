@@ -1,0 +1,48 @@
+title: Arc Control Deck
+description: Private command center for Arc
+startUrl: https://home.arc.home.arpa
+theme: dark
+color: slate
+headerStyle: clean
+iconStyle: theme
+statusStyle: dot
+fullWidth: true
+maxGroupColumns: 4
+useEqualHeights: true
+target: _self
+disableIndexing: true
+hideVersion: false
+cardBlur: md
+
+background:
+  image: /images/arc-bg.svg
+  brightness: 50
+  opacity: 45
+
+quicklaunch:
+  searchDescriptions: true
+  provider: custom
+  url: https://searxng.arc.home.arpa/search?q=
+  target: _blank
+
+layout:
+  Control Plane:
+    style: row
+    columns: 4
+    icon: mdi-server-network
+  Media & Files:
+    style: row
+    columns: 3
+    icon: mdi-multimedia
+  Privacy & Search:
+    style: row
+    columns: 3
+    icon: mdi-shield-lock-outline
+  AI Lab:
+    style: row
+    columns: 4
+    icon: mdi-robot-outline
+  Network & Cloud:
+    style: row
+    columns: 4
+    icon: mdi-access-point-network

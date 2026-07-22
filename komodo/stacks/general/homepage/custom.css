@@ -1,0 +1,13 @@
+:root {
+  --arc-glow: rgba(56, 189, 248, 0.16);
+}
+
+body {
+  letter-spacing: 0.01em;
+}
+
+#page_wrapper {
+  background-image:
+    radial-gradient(circle at 18% 0%, var(--arc-glow), transparent 32%),
+    radial-gradient(circle at 90% 10%, rgba(139, 92, 246, 0.12), transparent 30%);
+}

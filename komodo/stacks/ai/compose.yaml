@@ -23,7 +23,7 @@ services:
       - FIREWALL_INPUT_PORTS=8080,8642,9119
       - TZ=${TZ:-America/Los_Angeles}
     volumes:
-      - /home/luqmaan/developer/lab/config/gluetun:/gluetun
+      - /mnt/user/appdata/gluetun-state:/gluetun
     networks:
       - default
       - caddy-backend

@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     environment:
       CADDY_LAN_IP: ${CADDY_LAN_IP}
+    depends_on:
+      - unraid-webui-bridge
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${CADDY_STATE_PATH}/data:/data
@@ -18,6 +20,20 @@ services:
       caddy-backend:
     labels:
       net.unraid.docker.webui: "https://caddy.arc.home.arpa/"
+
+  unraid-webui-bridge:
+    container_name: unraid-webui-bridge
+    image: caddy:2
+    restart: unless-stopped
+    command:
+      - caddy
+      - reverse-proxy
+      - --from
+      - :8080
+      - --to
+      - http://192.168.50.51:80
+    networks:
+      - caddy-backend
 
 networks:
   lan:

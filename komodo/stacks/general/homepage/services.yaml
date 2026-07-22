@@ -1,0 +1,99 @@
+- Control Plane:
+    - Homepage:
+        icon: homepage.svg
+        href: https://home.arc.home.arpa
+        description: Arc command center
+        server: arc-docker
+        container: homepage
+    - Unraid:
+        icon: unraid.svg
+        href: https://unraid.arc.home.arpa
+        description: Storage, shares, VMs, and Docker
+    - Komodo:
+        icon: komodo.svg
+        href: https://komodo.arc.home.arpa
+        description: Compose and deployment control
+        server: arc-docker
+        container: komodo
+    - Beszel:
+        icon: beszel.svg
+        href: https://beszel.arc.home.arpa
+        description: Lightweight host monitoring
+        server: arc-docker
+        container: beszel
+
+- Media & Files:
+    - Jellyfin:
+        icon: jellyfin.svg
+        href: https://jellyfin.arc.home.arpa
+        description: Private media streaming
+        server: arc-docker
+        container: jellyfin
+    - JDownloader 2:
+        icon: jdownloader.svg
+        href: https://jdownloader.arc.home.arpa
+        description: Downloads through the general VPN
+        server: arc-docker
+        container: jdownloader-2
+    - FileBrowser Quantum:
+        icon: filebrowser.svg
+        href: https://filebrowser.arc.home.arpa
+        description: Browse and manage the Stash share
+        server: arc-docker
+        container: filebrowser
+
+- Privacy & Search:
+    - SearXNG:
+        icon: searxng.svg
+        href: https://searxng.arc.home.arpa
+        description: Private metasearch through VPN
+        server: arc-docker
+        container: searxng
+    - General VPN:
+        icon: gluetun.svg
+        description: JDownloader and SearXNG tunnel
+        server: arc-docker
+        container: general-gluetun
+    - AI VPN:
+        icon: gluetun.svg
+        description: Open WebUI and Hermes tunnel
+        server: arc-docker
+        container: gluetun
+
+- AI Lab:
+    - Open WebUI:
+        icon: open-webui.svg
+        href: https://open-webui.arc.home.arpa
+        description: Local and remote model workspace
+    - Hermes Agent:
+        icon: mdi-robot-outline
+        href: https://hermes.arc.home.arpa
+        description: Agent dashboard
+    - Hermes API:
+        icon: mdi-api
+        href: https://hermes-api.arc.home.arpa
+        description: Agent gateway API
+    - Caddy:
+        icon: caddy.svg
+        href: https://caddy.arc.home.arpa
+        description: Private HTTPS edge
+        server: arc-docker
+        container: caddy
+
+- Network & Cloud:
+    - ASUS Router:
+        icon: asus-router.svg
+        href: http://www.asusrouter.com
+        description: ZenWiFi network administration
+    - Tailscale:
+        icon: tailscale.svg
+        href: https://login.tailscale.com/admin/machines
+        description: Tailnet devices and subnet routes
+    - NextDNS:
+        icon: nextdns.svg
+        href: https://my.nextdns.io
+        description: DNS policy, logs, and rewrites
+    - GitHub Repository:
+        icon: github.svg
+        href: https://github.com/naamqul/unraid-docker-lab
+        description: Versioned Arc configuration

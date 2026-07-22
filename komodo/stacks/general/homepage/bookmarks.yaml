@@ -1,0 +1,27 @@
+- Documentation:
+    - Unraid Docs:
+        - icon: unraid.svg
+          href: https://docs.unraid.net/
+    - Docker Docs:
+        - icon: docker.svg
+          href: https://docs.docker.com/compose/
+    - Komodo Docs:
+        - icon: komodo.svg
+          href: https://komo.do/docs/intro
+    - Homepage Docs:
+        - icon: homepage.svg
+          href: https://gethomepage.dev/
+
+- Services:
+    - Proton VPN:
+        - icon: proton-vpn.svg
+          href: https://account.protonvpn.com/
+    - NordVPN:
+        - icon: nordvpn.svg
+          href: https://my.nordaccount.com/
+    - Unraid Connect:
+        - icon: unraid.svg
+          href: https://connect.myunraid.net/
+    - Community Apps:
+        - icon: mdi-apps
+          href: https://unraid.net/community/apps

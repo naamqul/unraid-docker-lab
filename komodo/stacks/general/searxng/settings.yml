@@ -1,0 +1,21 @@
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: Arc Search
+
+search:
+  safe_search: 0
+  autocomplete: duckduckgo
+  formats:
+    - html
+
+server:
+  secret_key: ultrasecretkey
+  limiter: false
+  image_proxy: true
+
+ui:
+  static_use_hash: true
+  theme_args:
+    simple_style: dark

@@ -1,0 +1,25 @@
+- greeting:
+    text_size: xl
+    text: Arc is online
+
+- openmeteo:
+    label: Los Angeles
+    latitude: 34.0522
+    longitude: -118.2437
+    timezone: America/Los_Angeles
+    units: imperial
+    cache: 5
+
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: medium
+      timeStyle: short
+      hour12: true
+
+- search:
+    provider: custom
+    url: https://searxng.arc.home.arpa/search?q=
+    focus: false
+    showSearchSuggestions: false
+    target: _blank

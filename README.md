@@ -14,7 +14,7 @@ komodo/
 └── stacks/            # Stacks managed by Komodo Periphery
     ├── ai/
     ├── caddy/          # LAN reverse proxy and its Caddyfile
-    ├── general/
+    ├── general/        # Homepage, monitoring, files, search, and downloads
     └── jellyfin/       # Media server; mutable state is kept outside Git
 ```
 
@@ -87,6 +87,11 @@ joins the external `caddy-backend` bridge, which lets it reach application
 containers directly without sending backend traffic through host-published
 ports.
 
+The `unraid-webui-bridge` helper is attached only to `caddy-backend`. It exists
+because Unraid's macvlan host isolation prevents the main Caddy container on
+`br0` from connecting directly to `192.168.50.51`; the helper reaches the host
+through Docker's bridge and publishes no port of its own.
+
 Arc advertises `192.168.50.0/24` as a Tailscale subnet route. After approving
 that route in the Tailscale admin console, a remote Tailscale client can reach
 the same `192.168.50.52` address used on the LAN. Linux clients must also run
@@ -100,6 +105,13 @@ The configured private names are:
 | `caddy.arc.home.arpa` | Caddy health response |
 | `komodo.arc.home.arpa` | `komodo:9120` |
 | `jellyfin.arc.home.arpa` | `jellyfin:8096` |
+| `unraid.arc.home.arpa` | Unraid host WebUI through the isolated bridge helper |
+| `home.arc.home.arpa` | `homepage:3000` |
+| `homepage.arc.home.arpa` | `homepage:3000` |
+| `beszel.arc.home.arpa` | `beszel:8090` |
+| `jdownloader.arc.home.arpa` | `general-gluetun:5800` |
+| `filebrowser.arc.home.arpa` | `filebrowser:80` |
+| `searxng.arc.home.arpa` | `general-gluetun:8080` |
 | `open-webui.arc.home.arpa` | `gluetun:8080` |
 | `hermes.arc.home.arpa` | `gluetun:9119` |
 | `hermes-api.arc.home.arpa` | `gluetun:8642` |
@@ -229,6 +241,7 @@ application projects:
 | --- | --- | --- |
 | `ai` | `/mnt/user/appdata/unraid-docker-lab/komodo/stacks/ai` | `ai` |
 | `caddy` | `/mnt/user/appdata/unraid-docker-lab/komodo/stacks/caddy` | `caddy` |
+| `general` | `/mnt/user/appdata/unraid-docker-lab/komodo/stacks/general` | `general` |
 | `jellyfin` | `/mnt/user/appdata/unraid-docker-lab/komodo/stacks/jellyfin` | `jellyfin` |
 
 Each is a **Files on host** stack on server `Arc`, using `compose.yaml`. Keep
@@ -239,11 +252,58 @@ Komodo CLI profile exists, deployments can be run from Core with:
 ```bash
 docker exec komodo km execute -y deploy-stack ai
 docker exec komodo km execute -y deploy-stack caddy
+docker exec komodo km execute -y deploy-stack general
 docker exec komodo km execute -y deploy-stack jellyfin
 ```
 
-The `general` directory is currently only a placeholder and has no deployable
-Compose services.
+## General services
+
+The `general` stack contains Homepage, Beszel Hub, FileBrowser Quantum,
+JDownloader 2, SearXNG, and a restricted Docker socket proxy for Homepage.
+JDownloader and SearXNG share `general-gluetun`'s network namespace, so their
+DNS and application traffic leave through that VPN tunnel. Caddy reaches their
+web interfaces through ports 5800 and 8080 on `general-gluetun`; neither port
+is published directly on the LAN.
+
+Prefer `deploy-stack general` over `restart-stack general`. A whole-stack
+restart can briefly stop Gluetun before its namespace-sharing dependents,
+causing Docker to reject SearXNG's restart; an ordered deploy safely restores
+the dependency chain.
+
+Persistent state is outside Git:
+
+```text
+/mnt/user/appdata/general-gluetun-state
+/mnt/user/appdata/jdownloader-state
+/mnt/user/appdata/filebrowser
+/mnt/user/appdata/searxng-state
+/mnt/user/appdata/beszel-state
+/mnt/user/appdata/beszel-agent-state
+```
+
+The real `general/.env` contains the VPN credential plus generated SearXNG,
+JDownloader, and FileBrowser secrets. Keep it in encrypted backups and do not
+commit it. JDownloader writes downloads to `/mnt/user/booty/downloads` as
+Unraid's `nobody:users` account (`99:100`). FileBrowser maps the complete
+`/mnt/user/booty` share at `/stash` and also runs as `99:100`.
+
+### Complete Beszel enrollment
+
+The Hub starts immediately, while its local agent is intentionally behind the
+`beszel-agent` Compose profile because the Hub generates the required key and
+token during enrollment:
+
+1. Open `https://beszel.arc.home.arpa` and create the first account.
+2. Add a system named `Arc` and create/select a universal token.
+3. Put the generated values in `general/.env` as `BESZEL_AGENT_KEY` and
+   `BESZEL_AGENT_TOKEN`.
+4. Add `COMPOSE_PROFILES=beszel-agent`, redeploy `general`, and use
+   `/beszel_socket/beszel.sock` for the system's Host/IP.
+
+Homepage is available at `https://home.arc.home.arpa`. Its hand-authored
+dashboard files live under `general/homepage`. It reads container status
+through `homepage-dockerproxy`, which permits Docker GET operations for
+container metadata while explicitly rejecting POST requests.
 
 ## Jellyfin
 
