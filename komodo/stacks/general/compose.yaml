@@ -30,6 +30,7 @@ services:
     depends_on:
       general-gluetun:
         condition: service_healthy
+        restart: true
     network_mode: service:general-gluetun
     environment:
       USER_ID: 99
@@ -53,6 +54,7 @@ services:
     depends_on:
       general-gluetun:
         condition: service_healthy
+        restart: true
     network_mode: service:general-gluetun
     environment:
       SEARXNG_BASE_URL: https://searxng.arc.home.arpa/

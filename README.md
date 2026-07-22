@@ -265,10 +265,11 @@ DNS and application traffic leave through that VPN tunnel. Caddy reaches their
 web interfaces through ports 5800 and 8080 on `general-gluetun`; neither port
 is published directly on the LAN.
 
-Prefer `deploy-stack general` over `restart-stack general`. A whole-stack
-restart can briefly stop Gluetun before its namespace-sharing dependents,
-causing Docker to reject SearXNG's restart; an ordered deploy safely restores
-the dependency chain.
+Both namespace-sharing services wait for Gluetun's health check during an
+ordered Compose `up`, and `restart: true` restarts them when Gluetun is
+explicitly restarted through Compose. Still prefer `deploy-stack general`
+over `restart-stack general`: a whole-stack restart operates on existing
+containers and can briefly stop the network namespace before its dependents.
 
 Persistent state is outside Git:
 
@@ -286,6 +287,32 @@ JDownloader, and FileBrowser secrets. Keep it in encrypted backups and do not
 commit it. JDownloader writes downloads to `/mnt/user/booty/downloads` as
 Unraid's `nobody:users` account (`99:100`). FileBrowser maps the complete
 `/mnt/user/booty` share at `/stash` and also runs as `99:100`.
+
+### Shared media permissions
+
+Jellyfin, FileBrowser, and JDownloader all access shared data through GID 100
+(`users`); a separate application group is unnecessary. Keep the complete
+`/mnt/user/booty` tree group-owned by `users`, group-readable/writable, and set
+the setgid bit plus a default ACL on directories so new content inherits that
+access:
+
+```bash
+chgrp -R users /mnt/user/booty
+chmod -R g+rwX /mnt/user/booty
+find /mnt/user/booty -xdev -type d -exec chmod g+s -- {} +
+find /mnt/user/booty -xdev -type d \
+  -exec setfacl -m d:u::rwx,d:g::rwx,d:m::rwx,d:o::rx -- {} +
+```
+
+When copying as `root` with rsync, prevent archive mode from restoring the
+source's owner, group, and permissions over this policy:
+
+```bash
+rsync -a --no-owner --no-group --no-perms SOURCE/ root@arc:/mnt/user/booty/
+```
+
+With a modern rsync on both ends, an explicit alternative is
+`--chown=nobody:users --chmod=D2775,F0664`.
 
 ### Complete Beszel enrollment
 
