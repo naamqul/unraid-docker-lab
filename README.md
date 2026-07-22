@@ -286,7 +286,9 @@ The real `general/.env` contains the VPN credential plus generated SearXNG,
 JDownloader, and FileBrowser secrets. Keep it in encrypted backups and do not
 commit it. JDownloader writes downloads to `/mnt/user/booty/downloads` as
 Unraid's `nobody:users` account (`99:100`). FileBrowser maps the complete
-`/mnt/user/booty` share at `/stash` and also runs as `99:100`.
+`/mnt/user/booty` share at `/files/stash`, exposes `/files` as its source root,
+and also runs as `99:100`. The UI therefore shows `stash` as a folder instead
+of opening directly into its contents.
 
 ### Shared media permissions
 

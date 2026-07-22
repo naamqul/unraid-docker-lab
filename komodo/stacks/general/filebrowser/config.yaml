@@ -3,8 +3,8 @@ server:
   database: /home/filebrowser/data/database.db
   cacheDir: /home/filebrowser/data/cache
   sources:
-    - path: /stash
-      name: Stash
+    - path: /files
+      name: Files
       config:
         defaultEnabled: true
 
@@ -16,4 +16,4 @@ auth:
       minLength: 12
 
 frontend:
-  name: Arc Stash
+  name: Arc Files

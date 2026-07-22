@@ -135,7 +135,6 @@ services:
       - /mnt/user/appdata/beszel-agent-state:/var/lib/beszel-agent
       - /mnt/user/appdata/beszel-state/socket:/beszel_socket
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /mnt/user/booty:/extra-filesystems/booty:ro
 
   filebrowser:
     container_name: filebrowser
@@ -152,7 +151,8 @@ services:
     volumes:
       - ./filebrowser/config.yaml:/config/config.yaml:ro
       - /mnt/user/appdata/filebrowser:/home/filebrowser/data
-      - /mnt/user/booty:/stash
+      - /mnt/user/filebrowser/files:/files
+      - /mnt/user/booty:/files/stash
     networks:
       - default
       - caddy-backend
