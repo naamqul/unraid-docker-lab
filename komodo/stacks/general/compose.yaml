@@ -75,6 +75,8 @@ services:
       - dockerproxy
     environment:
       HOMEPAGE_ALLOWED_HOSTS: home.arc.home.arpa,homepage.arc.home.arpa
+      HOMEPAGE_VAR_BESZEL_USERNAME: ${HOMEPAGE_BESZEL_USERNAME:?Set HOMEPAGE_BESZEL_USERNAME in .env}
+      HOMEPAGE_VAR_BESZEL_PASSWORD: ${HOMEPAGE_BESZEL_PASSWORD:?Set HOMEPAGE_BESZEL_PASSWORD in .env}
       LOG_TARGETS: stdout
       TZ: ${TZ:-America/Los_Angeles}
     volumes:

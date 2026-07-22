@@ -332,7 +332,11 @@ token during enrollment:
 Homepage is available at `https://home.arc.home.arpa`. Its hand-authored
 dashboard files live under `general/homepage`. It reads container status
 through `homepage-dockerproxy`, which permits Docker GET operations for
-container metadata while explicitly rejecting POST requests.
+container metadata while explicitly rejecting POST requests. Dashboard links
+open in new tabs, and the Beszel card uses a dedicated internal superuser to
+show Arc's CPU, memory, disk, and network metrics. Store that account only as
+`HOMEPAGE_BESZEL_USERNAME` and `HOMEPAGE_BESZEL_PASSWORD` in the ignored
+`general/.env`; Homepage receives them through `HOMEPAGE_VAR_*` substitutions.
 
 ## Jellyfin
 

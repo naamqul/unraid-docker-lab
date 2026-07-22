@@ -9,7 +9,7 @@ statusStyle: dot
 fullWidth: true
 maxGroupColumns: 4
 useEqualHeights: true
-target: _self
+target: _blank
 disableIndexing: true
 hideVersion: false
 cardBlur: md
