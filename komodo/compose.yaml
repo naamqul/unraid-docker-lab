@@ -30,6 +30,11 @@ services:
       - ./.env
     environment:
       KOMODO_DATABASE_ADDRESS: mongo:27017
+      # Keep the values named AGENT_API_* in .env, but expose the names that
+      # the bundled `km` CLI actually reads inside the Core container.
+      KOMODO_CLI_HOST: http://127.0.0.1:9120
+      KOMODO_CLI_KEY: ${AGENT_API_KEY}
+      KOMODO_CLI_SECRET: ${AGENT_API_SECRET}
     volumes:
       - ${KOMODO_STATE_PATH}/keys:/config/keys
       - ${COMPOSE_KOMODO_BACKUPS_PATH}:/backups

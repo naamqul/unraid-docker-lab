@@ -14,7 +14,8 @@ komodo/
 └── stacks/            # Stacks managed by Komodo Periphery
     ├── ai/
     ├── caddy/          # LAN reverse proxy and its Caddyfile
-    └── general/
+    ├── general/
+    └── jellyfin/       # Media server; mutable state is kept outside Git
 ```
 
 Komodo runtime state is stored separately:
@@ -62,7 +63,8 @@ Compose: /mnt/user/appdata/unraid-docker-lab/komodo/compose.yaml
 Env:     /mnt/user/appdata/unraid-docker-lab/komodo/.env
 ```
 
-Start it once, verify `http://arc.local:9120`, and then enable autostart.
+Start it once, verify `http://arc.local:9120`, and then enable autostart. After
+Caddy's internal CA is trusted, use `https://komodo.arc.home.arpa` instead.
 Compose Manager Plus should continue owning the Komodo bootstrap stack;
 Komodo can manage the application stacks below `komodo/stacks/`.
 
@@ -95,6 +97,7 @@ The configured private names are:
 | --- | --- |
 | `caddy.arc.home.arpa` | Caddy health response |
 | `komodo.arc.home.arpa` | `komodo:9120` |
+| `jellyfin.arc.home.arpa` | `jellyfin:8096` |
 | `open-webui.arc.home.arpa` | `gluetun:8080` |
 | `hermes.arc.home.arpa` | `gluetun:9119` |
 | `hermes-api.arc.home.arpa` | `gluetun:8642` |
@@ -109,7 +112,8 @@ it are unreliable across operating systems and Tailscale.
    exclude the address from the dynamic pool. Compose assigns this address
    statically and does not request a DHCP lease.
 2. In NextDNS Rewrites (or another DNS server used by both LAN and Tailscale
-   clients), point every name in the table above to `192.168.50.52`.
+   clients), point `arc.home.arpa` to `192.168.50.52`. NextDNS applies that
+   rewrite to the base name and all subdomains, including future apps.
 3. In the Tailscale admin console, open Arc's route settings and approve
    `192.168.50.0/24`. Advertising a route on Arc does not activate it until it
    is approved, unless an `autoApprovers` policy already covers it.
@@ -152,15 +156,16 @@ it are unreliable across operating systems and Tailscale.
    ```bash
    docker exec caddy caddy validate --config /etc/caddy/Caddyfile
    curl http://192.168.50.52
-   curl -H 'Host: komodo.arc.home.arpa' http://192.168.50.52
+   curl -k --resolve komodo.arc.home.arpa:443:192.168.50.52 \
+     https://komodo.arc.home.arpa
    ```
 
-The Caddyfile currently uses private HTTP. Tailscale encrypts traffic between
-the remote client and Arc, but LAN traffic and Arc's final hop to Caddy remain
-plain HTTP. For end-to-end HTTPS, either use a real domain with publicly
-trusted certificates or add `tls internal` to each site and install Caddy's
-root CA on every client. A Dockerized Caddy cannot install its CA into client
-trust stores automatically.
+The Caddyfile uses Caddy's internal CA because `home.arpa` cannot receive
+publicly trusted certificates. Install the public root certificate from
+`/mnt/user/appdata/caddy-state/data/caddy/pki/authorities/local/root.crt` in
+each client trust store. Never distribute the adjacent private key. Caddy's
+persisted `/data` directory must be backed up; losing it creates a new CA that
+clients will not yet trust.
 
 ### Add another proxied application manually
 
@@ -186,7 +191,8 @@ For an ordinary container:
    name and the container's internal port:
 
    ```caddyfile
-   http://example.arc.home.arpa {
+   example.arc.home.arpa {
+       tls internal
        reverse_proxy example:8080
    }
    ```
@@ -207,3 +213,57 @@ listening port to Gluetun's `FIREWALL_INPUT_PORTS`, and proxy to
 Host-published ports on Gluetun are currently retained as a recovery path.
 After Open WebUI and Hermes work through Caddy, those `ports:` entries can be
 removed to make Caddy the only LAN entry point.
+
+## Komodo stack ownership
+
+Periphery monitoring makes every Docker container visible under Arc, but it
+does not automatically create a Komodo Stack resource. A stack only appears in
+Komodo's Stacks page after it is registered in Komodo's database.
+
+Compose Manager Plus owns only the `komodo` bootstrap project. Komodo owns the
+application projects:
+
+| Stack | Run directory | Compose project |
+| --- | --- | --- |
+| `ai` | `/mnt/user/appdata/unraid-docker-lab/komodo/stacks/ai` | `ai` |
+| `caddy` | `/mnt/user/appdata/unraid-docker-lab/komodo/stacks/caddy` | `caddy` |
+| `jellyfin` | `/mnt/user/appdata/unraid-docker-lab/komodo/stacks/jellyfin` | `jellyfin` |
+
+Each is a **Files on host** stack on server `Arc`, using `compose.yaml`. Keep
+the Komodo stack name and Compose project name identical so Komodo adopts the
+existing project rather than creating a second one. Once an authenticated
+Komodo CLI profile exists, deployments can be run from Core with:
+
+```bash
+docker exec komodo km deploy stack ai -y
+docker exec komodo km deploy stack caddy -y
+docker exec komodo km deploy stack jellyfin -y
+```
+
+The `general` directory is currently only a placeholder and has no deployable
+Compose services.
+
+## Jellyfin
+
+Jellyfin runs as Unraid's `nobody:users` account (`99:100`). Its database,
+plugins, logs, and cache are deliberately outside the Git repository:
+
+```text
+/mnt/user/appdata/jellyfin-state/config
+/mnt/user/appdata/jellyfin-state/cache
+```
+
+The media share `/mnt/user/booty` is mounted read-only at `/media`. Port 8096
+remains published as a direct recovery path, while normal browser access uses
+`https://jellyfin.arc.home.arpa` through Caddy. UDP 7359 remains published for
+LAN client discovery. DLNA is not enabled by this bridge-network setup because
+it requires host networking; prefer native Jellyfin apps or add DLNA later as
+a deliberate tradeoff.
+
+The host currently has no `/dev/dri`, so hardware-accelerated transcoding is
+not configured. If a supported GPU later exposes `/dev/dri`, follow Jellyfin's
+vendor-specific hardware acceleration guide before adding the device mapping.
+
+After Jellyfin's first start, open **Dashboard > Networking > Known Proxies**
+and add Caddy's address on `caddy-backend`. This lets Jellyfin trust Caddy's
+forwarded client headers and apply local/remote access policy correctly.

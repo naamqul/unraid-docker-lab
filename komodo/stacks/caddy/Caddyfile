@@ -1,27 +1,40 @@
-# Plain HTTP is intentional for these private home.arpa names. Tailscale
-# encrypts remote traffic to the subnet router. See the repository README
-# before enabling Caddy's internal HTTPS or using a publicly trusted domain.
+# Private home.arpa names cannot receive publicly trusted certificates. Caddy's
+# internal CA issues and renews each certificate; clients trust its root once.
+
+(private_tls) {
+	tls internal
+}
 
 http://{$CADDY_LAN_IP} {
 	respond "Caddy on Arc is healthy" 200
 }
 
-http://caddy.arc.home.arpa {
+caddy.arc.home.arpa {
+	import private_tls
 	respond "Caddy on Arc is healthy" 200
 }
 
-http://komodo.arc.home.arpa {
+komodo.arc.home.arpa {
+	import private_tls
 	reverse_proxy komodo:9120
 }
 
-http://open-webui.arc.home.arpa {
+jellyfin.arc.home.arpa {
+	import private_tls
+	reverse_proxy jellyfin:8096
+}
+
+open-webui.arc.home.arpa {
+	import private_tls
 	reverse_proxy gluetun:8080
 }
 
-http://hermes.arc.home.arpa {
+hermes.arc.home.arpa {
+	import private_tls
 	reverse_proxy gluetun:9119
 }
 
-http://hermes-api.arc.home.arpa {
+hermes-api.arc.home.arpa {
+	import private_tls
 	reverse_proxy gluetun:8642
 }
