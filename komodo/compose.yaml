@@ -1,0 +1,63 @@
+name: komodo
+
+services:
+  mongo:
+    container_name: komodo-mongo
+    image: mongo
+    command: --quiet --wiredTigerCacheSizeGB 0.25
+    restart: unless-stopped
+    labels:
+      komodo.skip: ""
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${KOMODO_DATABASE_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${KOMODO_DATABASE_PASSWORD}
+    volumes:
+      - ${KOMODO_STATE_PATH}/mongo-data:/data/db
+      - ${KOMODO_STATE_PATH}/mongo-config:/data/configdb
+    networks:
+      - komodo-network
+
+  core:
+    container_name: komodo
+    image: ghcr.io/moghtech/komodo-core:${COMPOSE_KOMODO_IMAGE_TAG:-2}
+    init: true
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    ports:
+      - "9120:9120"
+    env_file:
+      - ./.env
+    environment:
+      KOMODO_DATABASE_ADDRESS: mongo:27017
+    volumes:
+      - ${KOMODO_STATE_PATH}/keys:/config/keys
+      - ${COMPOSE_KOMODO_BACKUPS_PATH}:/backups
+    networks:
+      - komodo-network
+    labels:
+      komodo.skip: ""
+
+  periphery:
+    container_name: komodo-periphery
+    image: ghcr.io/moghtech/komodo-periphery:${COMPOSE_KOMODO_IMAGE_TAG:-2}
+    init: true
+    restart: unless-stopped
+    depends_on:
+      - core
+    env_file:
+      - ./.env
+    volumes:
+      - ${KOMODO_STATE_PATH}/keys:/config/keys
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/proc
+      - ${PERIPHERY_ROOT_DIRECTORY}:${PERIPHERY_ROOT_DIRECTORY}
+    networks:
+      - komodo-network
+    labels:
+      komodo.skip: ""
+
+networks:
+  komodo-network:
+    name: komodo-network
+    driver: bridge

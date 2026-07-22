@@ -1,1 +1,49 @@
+# Local environment files and credentials
 .env
+.env.*
+*.env
+*.env.*
+!.env.example
+!*.env.example
+.envrc
+.direnv/
+secrets/
+**/secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Mutable application state (keep this in appdata, outside Git)
+open-webui/data/
+komodo/repos/
+komodo/builds/
+komodo/action-cache/
+komodo/backups/
+komodo/keys/
+**/mongo-data/
+**/mongo-config/
+**/runtime/
+
+# Databases, logs, sockets, and temporary files
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+*.pid
+*.sock
+*.tmp
+*.bak
+*.backup
+*.swp
+*~
+
+# Tool and operating-system metadata
+.cache/
+**/.cache/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
