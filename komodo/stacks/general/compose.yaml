@@ -83,8 +83,8 @@ services:
       - ./homepage:/app/config:ro
       - ./homepage/images:/app/public/images:ro
     networks:
-      - default
       - caddy-backend
+      - homepage-docker
 
   dockerproxy:
     container_name: homepage-dockerproxy
@@ -100,11 +100,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
-      - default
+      - homepage-docker
 
   beszel:
     container_name: beszel
-    image: henrygd/beszel:latest
+    image: henrygd/beszel:0.18.7
     restart: unless-stopped
     environment:
       APP_URL: https://beszel.arc.home.arpa
@@ -121,22 +121,57 @@ services:
   # Enable after creating the first Beszel account and adding Arc in the Hub.
   # Set BESZEL_AGENT_KEY, BESZEL_AGENT_TOKEN, and COMPOSE_PROFILES=beszel-agent
   # in .env, then redeploy this stack. Use /beszel_socket/beszel.sock as Host/IP.
+  beszel-dockerproxy:
+    container_name: beszel-dockerproxy
+    image: ghcr.io/wollomatic/socket-proxy:1.12.3
+    restart: unless-stopped
+    profiles:
+      - beszel-agent
+    network_mode: none
+    user: "0:0"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      SP_PROXYSOCKETENDPOINT: /beszel-docker-api/docker.sock
+      SP_PROXYSOCKETENDPOINTFILEMODE: "0600"
+      SP_ALLOW_GET: '/(v[0-9.]+/)?(version|info|containers/.*)'
+      SP_LOGLEVEL: WARN
+      SP_WATCHDOGINTERVAL: "60"
+      SP_STOPONWATCHDOG: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - beszel-docker-api:/beszel-docker-api
+
   beszel-agent:
     container_name: beszel-agent
-    image: henrygd/beszel-agent:latest
+    image: henrygd/beszel-agent:0.18.7
     restart: unless-stopped
     profiles:
       - beszel-agent
     network_mode: host
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      beszel-dockerproxy:
+        condition: service_started
     environment:
       LISTEN: /beszel_socket/beszel.sock
       HUB_URL: http://127.0.0.1:8090
+      DOCKER_HOST: unix:///beszel-docker-api/docker.sock
       KEY: ${BESZEL_AGENT_KEY:-UPDATE_ME}
       TOKEN: ${BESZEL_AGENT_TOKEN:-UPDATE_ME}
     volumes:
       - /mnt/user/appdata/beszel-agent-state:/var/lib/beszel-agent
       - /mnt/user/appdata/beszel-state/socket:/beszel_socket
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - beszel-docker-api:/beszel-docker-api:ro
+    tmpfs:
+      - /tmp
 
   filebrowser:
     container_name: filebrowser
@@ -159,7 +194,57 @@ services:
       - default
       - caddy-backend
 
+  termix:
+    container_name: termix
+    image: ghcr.io/lukegus/termix:2.5.1
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -c
+      - umask 077 && exec /entrypoint.sh
+    depends_on:
+      termix-guacd:
+        condition: service_started
+    environment:
+      PORT: "8080"
+      DATA_DIR: /app/data
+      ENABLE_SSL: "false"
+      ENABLE_GUACAMOLE: "true"
+      GUACD_HOST: termix-guacd
+      GUACD_PORT: "4822"
+      DB_FILE_ENCRYPTION: "true"
+      ALLOW_PASSWORD_RESET: "false"
+      PUID: "99"
+      PGID: "100"
+      TZ: ${TZ:-America/Los_Angeles}
+      # After creating the first administrator and enabling MFA, add:
+      # ALLOW_REGISTRATION: "false"
+    volumes:
+      - /mnt/user/appdata/termix-state:/app/data
+    networks:
+      caddy-backend:
+      termix-private:
+        ipv4_address: 172.23.0.10
+
+  termix-guacd:
+    container_name: termix-guacd
+    image: guacamole/guacd:1.6.0
+    restart: unless-stopped
+    networks:
+      termix-private:
+        ipv4_address: 172.23.0.11
+
 networks:
   caddy-backend:
     name: caddy-backend
     external: true
+  homepage-docker:
+    name: homepage-docker
+    internal: true
+  termix-private:
+    name: termix-private
+    external: true
+
+volumes:
+  beszel-docker-api:
+    name: beszel-docker-api

@@ -5,7 +5,7 @@ OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:
 or other application using the libvirt API.
 -->
 
-<domain type='kvm'>
+<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
   <name>Forge</name>
   <uuid>2aa8ec75-6629-466d-a029-3c5b9e3865a4</uuid>
   <metadata>
@@ -46,7 +46,7 @@ or other application using the libvirt API.
       <driver name='qemu' type='raw' cache='writeback' discard='unmap'/>
       <source file='/mnt/user/domains/Forge/vdisk1.img'/>
       <target dev='vda' bus='virtio'/>
-      <boot order='2'/>
+      <boot order='1'/>
       <address type='pci' domain='0x0000' bus='0x04' slot='0x00' function='0x0'/>
     </disk>
     <disk type='file' device='disk'>
@@ -54,13 +54,6 @@ or other application using the libvirt API.
       <source file='/mnt/user/domains/Forge/workspace.img'/>
       <target dev='vdb' bus='virtio'/>
       <address type='pci' domain='0x0000' bus='0x05' slot='0x00' function='0x0'/>
-    </disk>
-    <disk type='file' device='cdrom'>
-      <driver name='qemu' type='raw'/>
-      <target dev='sda' bus='sata'/>
-      <readonly/>
-      <boot order='1'/>
-      <address type='drive' controller='0' bus='0' target='0' unit='0'/>
     </disk>
     <controller type='pci' index='0' model='pcie-root'/>
     <controller type='pci' index='1' model='pcie-root-port'>
@@ -143,15 +136,15 @@ or other application using the libvirt API.
     </input>
     <input type='mouse' bus='ps2'/>
     <input type='keyboard' bus='ps2'/>
-    <graphics type='vnc' port='-1' autoport='yes' listen='0.0.0.0'>
-      <listen type='address' address='0.0.0.0'/>
-    </graphics>
+    <!-- FORGE_VNC_RUNTIME_PLACEHOLDER -->
     <audio id='1' type='none'/>
     <video>
       <model type='qxl' ram='65536' vram='65536' vgamem='16384' heads='1' primary='yes'/>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x0'/>
     </video>
-    <watchdog model='itco' action='reset'/>
+    <!-- Q35 exposes this implicit device even when omitted. Keep its QEMU
+         action inert in addition to the noreboot override below. -->
+    <watchdog model='itco' action='none'/>
     <memballoon model='virtio'>
       <address type='pci' domain='0x0000' bus='0x06' slot='0x00' function='0x0'/>
     </memballoon>
@@ -160,4 +153,10 @@ or other application using the libvirt API.
       <address type='pci' domain='0x0000' bus='0x07' slot='0x00' function='0x0'/>
     </rng>
   </devices>
+  <!-- Defang Q35's internal TCO reset path. The guest also hard-blocks the
+       iTCO_wdt module because probing/unbinding it is not a safe operation. -->
+  <qemu:commandline>
+    <qemu:arg value='-global'/>
+    <qemu:arg value='ICH9-LPC.noreboot=on'/>
+  </qemu:commandline>
 </domain>

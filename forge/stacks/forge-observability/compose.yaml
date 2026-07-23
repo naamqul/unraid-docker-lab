@@ -1,0 +1,55 @@
+name: forge-observability
+
+volumes:
+  beszel-docker-api:
+
+services:
+  socket-proxy:
+    container_name: forge-docker-socket-proxy
+    image: ghcr.io/wollomatic/socket-proxy:1.12.3
+    restart: unless-stopped
+    network_mode: none
+    user: "0:0"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      SP_PROXYSOCKETENDPOINT: /beszel-docker-api/docker.sock
+      SP_PROXYSOCKETENDPOINTFILEMODE: "0600"
+      SP_ALLOW_GET: '/(v[0-9.]+/)?(version|info|containers/.*)'
+      SP_LOGLEVEL: WARN
+      SP_WATCHDOGINTERVAL: "60"
+      SP_STOPONWATCHDOG: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - beszel-docker-api:/beszel-docker-api
+
+  beszel-agent:
+    container_name: forge-beszel-agent
+    image: henrygd/beszel-agent:0.18.7
+    restart: unless-stopped
+    network_mode: host
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      socket-proxy:
+        condition: service_started
+    environment:
+      HUB_URL: https://beszel.arc.home.arpa
+      DISABLE_SSH: "true"
+      DOCKER_HOST: unix:///beszel-docker-api/docker.sock
+      KEY_FILE: /run/secrets/beszel-key
+      TOKEN_FILE: /run/secrets/beszel-token
+    volumes:
+      - /etc/beszel-agent/key:/run/secrets/beszel-key:ro
+      - /etc/beszel-agent/token:/run/secrets/beszel-token:ro
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      - /var/lib/beszel-agent:/var/lib/beszel-agent
+      - beszel-docker-api:/beszel-docker-api:ro
+    tmpfs:
+      - /tmp

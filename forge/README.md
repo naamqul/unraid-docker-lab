@@ -18,13 +18,12 @@ projects.
 | OS disk | `/mnt/user/domains/Forge/vdisk1.img`, 256 GiB sparse raw |
 | Workspace disk | `/mnt/user/domains/Forge/workspace.img`, 512 GiB sparse raw |
 | Workspace mount | `/workspace`, ext4, `noatime` |
-| Console | QXL plus Unraid VNC; no physical GPU passthrough |
+| Console | QXL plus Termix/guacd VNC; no physical GPU passthrough |
 | Startup | Unraid autostart enabled |
 
-Reserve `192.168.50.179` for `52:54:00:c7:1f:f3` in the ASUS DHCP table before
-putting an IP address in a long-lived proxy or automation. `forge.local`
-currently follows the router's DHCP hostname registration and is the direct
-LAN SSH name.
+The ASUS DHCP reservation binds `192.168.50.179` to
+`52:54:00:c7:1f:f3`. Use the reserved address for long-lived automation;
+`forge.local` remains a convenience name supplied by router DNS.
 
 Forge does not run its own Tailscale node. Arc is already online as a Tailscale
 subnet router for `192.168.50.0/24`, so remote tailnet clients can reach Forge
@@ -36,7 +35,7 @@ The Windows SSH profile uses a Forge-specific key:
 
 ```sshconfig
 Host forge
-  HostName forge.local
+  HostName 192.168.50.179
   User luqmaan
   IdentityFile ~/.ssh/forge_ed25519
   IdentitiesOnly yes
@@ -58,6 +57,17 @@ The `codex` identity has two narrowly scoped integrations:
 - A forced-command SSH key for Arc. The matching Unraid entry permits only the
   commands defined by `unraid-readonly-wrapper.sh`; it does not provide a
   shell, forwarding, or arbitrary root execution.
+
+Forge also has a dedicated GitHub SSH key at
+`/home/luqmaan/.ssh/github_ed25519`. Its fingerprint is
+`SHA256:ix4WlFsg2J7yfkmbPU8lVniBeOFqUncfSIA6dQC2Gwc`; the private key never
+leaves Forge. Add only its `.pub` value to the intended GitHub account.
+
+Komodo Periphery `2.2.0` runs as a root systemd service in outbound mode to
+`https://komodo.arc.home.arpa`. It opens no inbound port, trusts only Caddy's
+public root CA, and has both general and container terminal APIs disabled.
+Komodo stack deployment remains root-equivalent even with those terminal APIs
+disabled.
 
 The Komodo secret, SSH private keys, installer password, Caddy private CA key,
 and agent-service credentials must never be committed here.
@@ -89,16 +99,26 @@ edit and build collisions.
 
 ## Rebuild artifacts
 
-- `Forge.xml` is the persistent libvirt definition captured after installation.
-  It contains no installer ISO, temporary bootstrap share, or passthrough
-  device.
+- `Forge.xml` is the secret-free libvirt definition captured after
+  installation. It contains no installer ISO, temporary bootstrap share,
+  passthrough device, or live VNC definition. Defining it directly therefore
+  produces a headless VM rather than an unauthenticated console.
 - `bootstrap.sh` installs the guest baseline and safely initializes an empty
   512 GiB `/dev/vdb` as `/workspace`. It requires an external public key file;
   no key is embedded.
+- `stabilize.sh` applies the mandatory Kubuntu 26.04 shadow-stack/fwupd and
+  Q35 iTCO containment before the rest of bootstrap work.
+- `configure-vnc.sh` creates/verifies the internal Docker bridge, injects the
+  root-only VNC password into temporary runtime XML, defines the persistent
+  domain, and removes the temporary file. It refuses to run while Forge is
+  active.
 - `harden-ssh.sh` disables password login only after a second key-based session
   has been tested.
 - `unraid-readonly-wrapper.sh` is installed on Arc at the same path as this
   repository copy and is the allowlist behind the Forge-to-Unraid SSH key.
+- `stacks/forge-observability` contains the outbound Beszel agent, a
+  GET-filtered Docker proxy exposed only as a root-only Unix socket, and the
+  hidden-prompt enrollment helper.
 
 Kubuntu's desktop ISO uses Calamares and does not support Ubuntu Server's
 Subiquity autoinstall format. Rebuilding therefore has one interactive install
@@ -118,6 +138,34 @@ Before running `bootstrap.sh`, confirm `/dev/vdb` is the new empty 512 GiB
 workspace disk. The script refuses to format a disk with an unexpected size,
 partition table, or filesystem signature.
 
+### Post-bootstrap integrations
+
+The guest bootstrap intentionally does not embed infrastructure credentials.
+Rebuilds therefore finish with these explicit steps:
+
+1. On Arc, fully shut Forge down and run
+   `/mnt/user/appdata/unraid-docker-lab/forge/configure-vnc.sh`; then start
+   Forge again. Do not define the tracked XML directly if a console is wanted.
+2. Copy only Caddy's public root certificate into Forge's system trust store.
+   Never copy Caddy's private CA key.
+3. Install the pinned Periphery version, configure outbound access to
+   `https://komodo.arc.home.arpa`, and keep general/container terminal APIs
+   disabled. Register Forge and its Files-on-host observability stack in
+   Komodo only after TLS validation succeeds.
+4. Install `stacks/forge-observability/enroll-beszel.py` as root at
+   `/usr/local/sbin/enroll-forge-beszel`, and install its Compose file under
+   `/etc/komodo/stacks/forge-observability`. Run enrollment only through its
+   hidden prompts.
+5. Generate Forge's GitHub Ed25519 key locally as `luqmaan`; add only its
+   public half to GitHub and pin GitHub's published host key.
+6. Recreate the narrowly scoped Forge-to-Arc diagnostic key and Komodo CLI
+   profile without placing either secret in this repository.
+
+After any Unraid reboot, verify that the external `termix-private` Docker
+network exists before Forge autostarts. Preserve user-defined Docker networks.
+The cold-boot ordering is not yet qualified; if Forge fails to start, recreate
+the network, leave Forge shut off, rerun `configure-vnc.sh`, and start it.
+
 ## Operational checks
 
 From a normal client:
@@ -134,6 +182,10 @@ virsh domifaddr Forge --source agent
 virsh qemu-agent-command Forge '{"execute":"guest-ping"}'
 ```
 
+When intentionally stopping Forge, prefer
+`virsh shutdown Forge --mode agent`; that is a shutdown action, not a routine
+health check.
+
 Inside Forge:
 
 ```bash
@@ -142,7 +194,44 @@ findmnt /workspace
 swapon --show
 docker version
 docker compose version
+systemctl is-active periphery
+systemctl is-enabled fwupd.service fwupd-refresh.service fwupd-refresh.timer
+modprobe -n -v iTCO_wdt
 ```
+
+The expected results are: core runtime services active, all three fwupd units
+`masked`, and the dry-run modprobe ending in `install /bin/false`.
+
+## Platform containment
+
+Forge reproduced the Panther Lake repository's F10 failure even without iGPU
+passthrough. An `fwupd-refresh` activation was followed within two seconds by
+unrelated processes faulting at the same address with page-fault error
+`0x44/0x46`; Linux continued answering ICMP while SSH, QGA, D-Bus, and the
+desktop died. This is the documented KVM/CET user-shadow-stack collapse, not a
+QXL or VFIO failure.
+
+The required containment is deliberate:
+
+- boot with `nousershstk`;
+- keep `fwupd.service`, `fwupd-refresh.service`, and
+  `fwupd-refresh.timer` masked;
+- hard-block `iTCO_wdt` with `install iTCO_wdt /bin/false` and carry it
+  into the initramfs;
+- set Q35 `ICH9-LPC.noreboot=on` and the implicit iTCO action to `none`;
+- use SDDM's X11 greeter for QXL, disable sleep/hibernate, and retain ACPI
+  poweroff handling for clean Unraid shutdowns.
+
+Tradeoffs: Forge gives up the user-space CET shadow-stack mitigation, guest
+firmware updates, and the Q35 internal watchdog. Re-enable none of them until
+the corresponding platform failure is independently fixed and requalified.
+
+Forge's VNC endpoint is fixed at `172.23.0.1:5909`, password protected, and
+bound only to Docker's internal `termix-private` bridge. The tracked XML omits
+the entire VNC device so a raw definition fails closed; Arc injects the device
+and secret from
+`/boot/config/secrets/forge-vnc-password` into root-only runtime libvirt XML.
+The `termix-private` network must exist before Forge starts.
 
 The QEMU guest agent is an administrative host-to-guest channel. Do not expose
 its socket or libvirt control to agent identities.

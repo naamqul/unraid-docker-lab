@@ -119,6 +119,7 @@ The configured private names are:
 | `home.arc.home.arpa` | `homepage:3000` |
 | `homepage.arc.home.arpa` | `homepage:3000` |
 | `beszel.arc.home.arpa` | `beszel:8090` |
+| `termix.arc.home.arpa` | `termix:8080` |
 | `jdownloader.arc.home.arpa` | `general-gluetun:5800` |
 | `filebrowser.arc.home.arpa` | `filebrowser:80` |
 | `searxng.arc.home.arpa` | `general-gluetun:8080` |
@@ -142,13 +143,18 @@ it are unreliable across operating systems and Tailscale.
 2. In NextDNS Rewrites (or another DNS server used by both LAN and Tailscale
    clients), point `arc.home.arpa` to `192.168.50.52`. NextDNS applies that
    rewrite to the base name and all subdomains, including future apps.
+   Add the more-specific exception `router.arc.home.arpa` →
+   `192.168.50.1`; the router uses plain HTTP directly and intentionally
+   bypasses Caddy.
 3. In the Tailscale admin console, open Arc's route settings and approve
    `192.168.50.0/24`. Advertising a route on Arc does not activate it until it
    is approved, unless an `autoApprovers` policy already covers it.
-4. Create the shared backend network once:
+4. Create the shared backend and isolated Termix networks once:
 
    ```bash
    docker network create caddy-backend
+   docker network create --driver bridge --internal \
+     --subnet 172.23.0.0/24 --gateway 172.23.0.1 termix-private
    ```
 
 5. Copy the Caddy environment template and create its state directories:
@@ -265,16 +271,21 @@ existing project rather than creating a second one. Once an authenticated
 Komodo CLI profile exists, deployments can be run from Core with:
 
 ```bash
-docker exec komodo km execute -y deploy-stack ai
-docker exec komodo km execute -y deploy-stack caddy
-docker exec komodo km execute -y deploy-stack general
-docker exec komodo km execute -y deploy-stack jellyfin
+printf '\n' | docker exec -i komodo km execute deploy-stack ai
+printf '\n' | docker exec -i komodo km execute deploy-stack caddy
+printf '\n' | docker exec -i komodo km execute deploy-stack general
+printf '\n' | docker exec -i komodo km execute deploy-stack jellyfin
 ```
+
+Forge also has a **Files on host** stack named `forge-observability`, on server
+`Forge`, rooted at `/etc/komodo/stacks/forge-observability`. It remains stopped
+until its dedicated Beszel key and token have been enrolled.
 
 ## General services
 
 The `general` stack contains Homepage, Beszel Hub, FileBrowser Quantum,
-JDownloader 2, SearXNG, and a restricted Docker socket proxy for Homepage.
+JDownloader 2, SearXNG, Termix, guacd, and a restricted Docker socket proxy for
+Homepage.
 JDownloader and SearXNG share `general-gluetun`'s network namespace, so their
 DNS and application traffic leave through that VPN tunnel. Caddy reaches their
 web interfaces through ports 5800 and 8080 on `general-gluetun`; neither port
@@ -295,6 +306,7 @@ Persistent state is outside Git:
 /mnt/user/appdata/searxng-state
 /mnt/user/appdata/beszel-state
 /mnt/user/appdata/beszel-agent-state
+/mnt/user/appdata/termix-state
 ```
 
 The real `general/.env` contains the VPN credential plus generated SearXNG,
@@ -338,18 +350,84 @@ The Hub starts immediately, while its local agent is intentionally behind the
 token during enrollment:
 
 1. Open `https://beszel.arc.home.arpa` and create the first account.
-2. Add a system named `Arc` and create/select a universal token.
-3. Put the generated values in `general/.env` as `BESZEL_AGENT_KEY` and
-   `BESZEL_AGENT_TOKEN`.
+2. Add a system named `Arc` using the Unix socket
+   `/beszel_socket/beszel.sock`. Use that system's individual enrollment
+   instructions rather than a universal token.
+3. Put the displayed Hub public key and per-system token in `general/.env` as
+   `BESZEL_AGENT_KEY` and `BESZEL_AGENT_TOKEN`.
 4. Add `COMPOSE_PROFILES=beszel-agent`, redeploy `general`, and use
    `/beszel_socket/beszel.sock` for the system's Host/IP.
+
+Arc and Forge agents use pinned Beszel `0.18.7` images. Each agent receives a
+filtered, GET-only Docker view through a root-only Unix socket; the agent
+itself never mounts the raw Docker socket, and no Docker API TCP port is
+published.
+
+Forge uses a separate outbound-only agent and Unix-socket proxy. Its tracked
+Compose file and enrollment helper are in
+`forge/stacks/forge-observability`. To finish enrollment without copying a
+credential into shell history:
+
+```bash
+ssh forge
+sudo /usr/local/sbin/enroll-forge-beszel
+```
+
+Enter the existing Beszel login only at the hidden prompts, then deploy the
+already-registered `forge-observability` stack from Komodo. No port is opened
+in Forge's firewall: the agent initiates its authenticated WebSocket to
+`https://beszel.arc.home.arpa`. The agent mounts Forge's public system CA
+bundle read-only so it can validate Caddy's private CA; no Caddy private key is
+present in the container.
+
+### Termix and the Forge console
+
+Termix is available at `https://termix.arc.home.arpa`. It publishes no host
+port. `termix-guacd` is attached only to the internal `termix-private` bridge,
+and Forge VNC listens only on that bridge at `172.23.0.1:5909`.
+
+Complete the security-sensitive first run interactively:
+
+1. Create the first administrator, enroll a passkey or TOTP, and save recovery
+   material.
+2. Disable registration and session recording in Termix. Session recording is
+   off by policy because Guacamole recordings can include key events.
+3. Add `ALLOW_REGISTRATION: "false"` to the Termix environment in
+   `general/compose.yaml`, then redeploy `general`.
+4. Generate separate Ed25519 credentials in Termix for Arc and Forge. Do not
+   reuse the Windows administrative key or the Forge GitHub key.
+5. Install only each generated public key on its target: append the Arc key to
+   `/root/.ssh/authorized_keys` with directory mode `0700` and file mode
+   `0600`; append the Forge key to
+   `/home/luqmaan/.ssh/authorized_keys` with the same modes and
+   `luqmaan:luqmaan` ownership. Never export the Termix private keys.
+6. Add SSH hosts for Arc (`192.168.50.51`, user `root`) and Forge
+   (`192.168.50.179`, user `luqmaan`). Establish each host first through a
+   saved Terminal session and independently verify its host key; Quick Connect
+   does not provide the same first-use verification.
+7. Add Forge as a VNC host at `172.23.0.1:5909`, with session logging
+   explicitly disabled. Retrieve the eight-character password only when
+   entering it:
+
+   ```bash
+   ssh unraid 'cat /boot/config/secrets/forge-vnc-password'
+   ```
+
+The password is also present in root-only libvirt XML because QEMU VNC accepts
+only an eight-character password. Network isolation is the primary boundary.
+Do not expose port 5909 on `br0`, publish guacd, or commit the password.
+Back up all of `/mnt/user/appdata/termix-state` as encrypted data. Its hidden
+`.env` contains the generated encryption keys required to restore and decrypt
+the Termix database.
 
 Homepage is available at `https://home.arc.home.arpa`. Its hand-authored
 dashboard files live under `general/homepage`. It reads container status
 through `homepage-dockerproxy`, which permits Docker GET operations for
-container metadata while explicitly rejecting POST requests. Dashboard links
-open in new tabs, and the Beszel card uses a dedicated internal superuser to
-show Arc's CPU, memory, disk, and network metrics. Store that account only as
+container metadata while explicitly rejecting POST requests. The proxy shares
+an internal network only with Homepage; unrelated application containers
+cannot reach it. Dashboard links open in new tabs, and the Beszel card is
+configured to use a dedicated dashboard account to show Arc's CPU, memory,
+disk, and network metrics. Store that account only as
 `HOMEPAGE_BESZEL_USERNAME` and `HOMEPAGE_BESZEL_PASSWORD` in the ignored
 `general/.env`; Homepage receives them through `HOMEPAGE_VAR_*` substitutions.
 

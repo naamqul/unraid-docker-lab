@@ -25,6 +25,9 @@ export NEEDRESTART_MODE=a
   exit 1
 }
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+bash "${SCRIPT_DIR}/stabilize.sh"
+
 id "${ADMIN_USER}" >/dev/null
 [[ -r "${ADMIN_PUBKEY_FILE}" ]] || {
   echo "Missing public key: ${ADMIN_PUBKEY_FILE}"

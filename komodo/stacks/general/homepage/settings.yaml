@@ -42,6 +42,10 @@ layout:
     style: row
     columns: 4
     icon: mdi-robot-outline
+  Remote Access:
+    style: row
+    columns: 2
+    icon: mdi-remote-desktop
   Network & Cloud:
     style: row
     columns: 4

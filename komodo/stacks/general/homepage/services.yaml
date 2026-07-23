@@ -92,6 +92,18 @@
         server: arc-docker
         container: caddy
 
+- Remote Access:
+    - Termix:
+        icon: termix.svg
+        href: https://termix.arc.home.arpa
+        description: SSH and remote desktop gateway
+        server: arc-docker
+        container: termix
+    - Forge Console:
+        icon: linux.svg
+        href: https://termix.arc.home.arpa
+        description: Forge VNC console through isolated guacd
+
 - Network & Cloud:
     - ASUS Router:
         icon: asus-router.svg
