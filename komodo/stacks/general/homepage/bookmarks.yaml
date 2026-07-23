@@ -9,7 +9,7 @@
         - icon: komodo.svg
           href: https://komo.do/docs/intro
     - Homepage Docs:
-        - icon: homepage.svg
+        - icon: /android-chrome-512x512.png
           href: https://gethomepage.dev/
 
 - Services:

@@ -1,6 +1,6 @@
 - Control Plane:
     - Homepage:
-        icon: homepage.svg
+        icon: /android-chrome-512x512.png
         href: https://home.arc.home.arpa
         description: Arc command center
         server: arc-docker
@@ -95,7 +95,7 @@
 - Network & Cloud:
     - ASUS Router:
         icon: asus-router.svg
-        href: http://www.asusrouter.com
+        href: https://router.arc.home.arpa
         description: ZenWiFi network administration
     - Tailscale:
         icon: tailscale.svg
