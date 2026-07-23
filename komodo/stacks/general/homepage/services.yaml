@@ -95,7 +95,7 @@
 - Network & Cloud:
     - ASUS Router:
         icon: asus-router.svg
-        href: https://router.arc.home.arpa
+        href: http://router.arc.home.arpa
         description: ZenWiFi network administration
     - Tailscale:
         icon: tailscale.svg

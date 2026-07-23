@@ -31,14 +31,6 @@ unraid.arc.home.arpa {
 	}
 }
 
-router.arc.home.arpa {
-	import private_tls
-	reverse_proxy http://192.168.50.1 {
-		header_up Host 192.168.50.1
-		header_down Location ^http://[^/]+(.*)$ https://router.arc.home.arpa$1
-	}
-}
-
 # The Forge VM does not have a web service or reserved IP yet. Reserve its
 # private HTTPS name now and replace this response with reverse_proxy after
 # the VM and its intended web endpoint are provisioned.
