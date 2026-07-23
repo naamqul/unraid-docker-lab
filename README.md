@@ -7,6 +7,7 @@ cache-backed `appdata` directories.
 ## Layout
 
 ```text
+forge/                   # Forge VM definition, bootstrap, and access controls
 komodo/
 ├── compose.yaml       # Bootstrap stack owned by Compose Manager Plus
 ├── .env               # Local secrets; ignored by Git
@@ -80,6 +81,15 @@ Komodo can manage the application stacks below `komodo/stacks/`.
 - The real `.env` is intentionally excluded from Git and must be backed up
   securely through a separate encrypted mechanism.
 
+## Forge development VM
+
+The always-on Forge VM is documented under [`forge/`](forge/README.md).
+That directory contains its persistent libvirt definition, secret-free guest
+bootstrap and SSH-hardening scripts, and the allowlisted Forge-to-Unraid
+diagnostic wrapper. Forge has independent storage and identity from the
+existing graphics-development VM; the Panther Lake repository migration and
+backup policy are intentionally separate follow-up work.
+
 ## Reverse proxy and remote access
 
 Caddy owns `192.168.50.52` on Docker's Unraid-managed `br0` network. It also
@@ -115,6 +125,7 @@ The configured private names are:
 | `open-webui.arc.home.arpa` | `gluetun:8080` |
 | `hermes.arc.home.arpa` | `gluetun:9119` |
 | `hermes-api.arc.home.arpa` | `gluetun:8642` |
+| `forge.arc.home.arpa` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 
 `home.arpa` is used deliberately. Do not use subdomains of `arc.local` here:
 `.local` is reserved for multicast DNS, and wildcard/unicast records beneath
@@ -125,6 +136,9 @@ it are unreliable across operating systems and Tailscale.
 1. Reserve `192.168.50.52` for MAC `02:42:c0:a8:32:34` in ASUS DHCP, or
    exclude the address from the dynamic pool. Compose assigns this address
    statically and does not request a DHCP lease.
+   Separately reserve `192.168.50.179` for Forge's MAC
+   `52:54:00:c7:1f:f3`; that lease is used for direct SSH and future Caddy
+   upstreams.
 2. In NextDNS Rewrites (or another DNS server used by both LAN and Tailscale
    clients), point `arc.home.arpa` to `192.168.50.52`. NextDNS applies that
    rewrite to the base name and all subdomains, including future apps.
@@ -211,7 +225,8 @@ For an ordinary container:
    }
    ```
 
-3. Add a DNS rewrite from `example.arc.home.arpa` to `192.168.50.52`.
+3. The existing `arc.home.arpa` wildcard rewrite already covers the new name;
+   do not add a redundant per-application rewrite.
 4. Redeploy the application, validate the Caddyfile, and gracefully reload it:
 
    ```bash
