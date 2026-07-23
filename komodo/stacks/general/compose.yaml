@@ -214,11 +214,10 @@ services:
       GUACD_PORT: "4822"
       DB_FILE_ENCRYPTION: "true"
       ALLOW_PASSWORD_RESET: "false"
+      ALLOW_REGISTRATION: "false"
       PUID: "99"
       PGID: "100"
       TZ: ${TZ:-America/Los_Angeles}
-      # After creating the first administrator and enabling MFA, add:
-      # ALLOW_REGISTRATION: "false"
     volumes:
       - /mnt/user/appdata/termix-state:/app/data
     networks:

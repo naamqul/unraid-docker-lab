@@ -386,36 +386,37 @@ Termix is available at `https://termix.arc.home.arpa`. It publishes no host
 port. `termix-guacd` is attached only to the internal `termix-private` bridge,
 and Forge VNC listens only on that bridge at `172.23.0.1:5909`.
 
-Complete the security-sensitive first run interactively:
+The first administrator and a passkey are enrolled. Registration is disabled
+both in Termix's persisted settings and with
+`ALLOW_REGISTRATION: "false"` in `general/compose.yaml`; session recording is
+not configured. The managed connections are:
 
-1. Create the first administrator, enroll a passkey or TOTP, and save recovery
-   material.
-2. Disable registration and session recording in Termix. Session recording is
-   off by policy because Guacamole recordings can include key events.
-3. Add `ALLOW_REGISTRATION: "false"` to the Termix environment in
-   `general/compose.yaml`, then redeploy `general`.
-4. Generate separate Ed25519 credentials in Termix for Arc and Forge. Do not
-   reuse the Windows administrative key or the Forge GitHub key.
-5. Install only each generated public key on its target: append the Arc key to
-   `/root/.ssh/authorized_keys` with directory mode `0700` and file mode
-   `0600`; append the Forge key to
-   `/home/luqmaan/.ssh/authorized_keys` with the same modes and
-   `luqmaan:luqmaan` ownership. Never export the Termix private keys.
-6. Add SSH hosts for Arc (`192.168.50.51`, user `root`) and Forge
-   (`192.168.50.179`, user `luqmaan`). Establish each host first through a
-   saved Terminal session and independently verify its host key; Quick Connect
-   does not provide the same first-use verification.
-7. Add Forge as a VNC host at `172.23.0.1:5909`, with session logging
-   explicitly disabled. Retrieve the eight-character password only when
-   entering it:
+| Termix entry | Protocol | Target | Account |
+| --- | --- | --- | --- |
+| `Arc / Unraid` | SSH | `192.168.50.51:22` | `root` |
+| `Forge` | SSH | `192.168.50.179:22` | `luqmaan` |
+| `Forge Desktop (Kubuntu)` | VNC | `172.23.0.1:5909` | password only |
 
-   ```bash
-   ssh unraid 'cat /boot/config/secrets/forge-vnc-password'
-   ```
+Arc and Forge use separate Termix-generated Ed25519 credentials; neither
+reuses the Windows administrative key or Forge's GitHub key. Their authorized
+key entries disable agent forwarding, port forwarding, X11 forwarding, and
+user RC files while preserving the PTY, SFTP, and command execution required
+by Termix. The Arc entry remains root-equivalent, including its Docker view.
+The Forge entry has terminal, file-manager, Docker, and system-stat access.
+Verify each server's host-key fingerprint when Termix first presents it.
+
+Termix stores the private SSH keys and VNC password in its encrypted database.
+The one-time API key used for provisioning was revoked and its handoff file
+deleted immediately after end-to-end SSH authentication tests passed. Never
+export the Termix hosts or credentials into an unencrypted file.
 
 The password is also present in root-only libvirt XML because QEMU VNC accepts
 only an eight-character password. Network isolation is the primary boundary.
 Do not expose port 5909 on `br0`, publish guacd, or commit the password.
+The separate powered-down VFIO VM named `Kubuntu` intentionally has no
+libvirt VNC device: adding an emulated display alongside its passed-through
+iGPU previously stalled Plasma. `Forge Desktop (Kubuntu)` is the supported
+browser-accessible Kubuntu environment.
 Back up all of `/mnt/user/appdata/termix-state` as encrypted data. Its hidden
 `.env` contains the generated encryption keys required to restore and decrypt
 the Termix database.
