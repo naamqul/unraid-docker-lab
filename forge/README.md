@@ -233,6 +233,18 @@ and secret from
 `/boot/config/secrets/forge-vnc-password` into root-only runtime libvirt XML.
 The `termix-private` network must exist before Forge starts.
 
+The bootstrap explicitly installs Xorg core, the QXL display driver, libinput,
+and `xcvt` before relying on SDDM's forced-X11 greeter. A VNC connection that
+authenticates but shows a black framebuffer should first be checked with:
+
+```bash
+systemctl status sddm
+pgrep -a 'Xorg|sddm-greeter'
+```
+
+If SDDM reports that `/usr/bin/X` cannot start, repair those four packages
+rather than changing the validated QXL VM definition.
+
 The QEMU guest agent is an administrative host-to-guest channel. Do not expose
 its socket or libvirt control to agent identities.
 

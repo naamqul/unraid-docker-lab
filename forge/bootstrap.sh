@@ -48,6 +48,8 @@ apt-get update
 
 apt-get install -y \
   qemu-guest-agent spice-vdagent \
+  xserver-xorg-core xserver-xorg-video-qxl \
+  xserver-xorg-input-libinput xcvt \
   openssh-server unattended-upgrades ufw \
   ca-certificates curl wget gnupg \
   git git-lfs gh \
