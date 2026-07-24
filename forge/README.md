@@ -10,16 +10,23 @@ projects.
 
 | Setting | Value |
 | --- | --- |
-| Guest | Kubuntu 26.04 / Ubuntu 26.04 LTS base (initial provisioning) |
+| Guest | Kubuntu 26.04 / Ubuntu 26.04 LTS base, provisioned |
 | UUID | `1528c7a1-af0a-2d8c-11eb-6c9e2a0faeb0` |
 | MAC | `52:54:00:c7:1f:f3` |
 | Reserved DHCP address | `192.168.50.179` |
 | Compute | 12 vCPU, 8 GiB current / 48 GiB maximum ballooned RAM |
 | OS disk | `/mnt/user/domains/Forge/vdisk1.img`, 256 GiB sparse raw |
-| Workspace disk | Created and attached after OS installation |
-| Workspace mount | `/workspace`, ext4, `noatime` (post-bootstrap) |
-| Console | 2D VirtIO plus stock Unraid VNC; Termix RDP after provisioning |
-| Startup | Disabled until the replacement passes validation |
+| Workspace disk | `/mnt/user/domains/Forge/workspace.img`, 256 GiB sparse raw |
+| Workspace mount | `/dev/vdb1` at `/workspace`, ext4 label `forge-workspace`, `noatime` |
+| Console | xRDP on TCP 3389 for normal use; 2D VirtIO plus stock Unraid VNC for break-glass access |
+| Startup | Enabled in libvirt after cold-boot validation |
+
+Final validation on 2026-07-24 detached the installer ISO and exercised a full
+power-off/start cycle. QGA, SSH, Docker, xRDP, Periphery, and both Forge
+observability containers recovered automatically; `/workspace` and the 16 GiB
+swap file were present; RDP was reachable from Windows and Termix's guacd
+container; Beszel reported Forge `up`; and `virsh dominfo Forge` reported
+`Autostart: enable`.
 
 The ASUS DHCP reservation binds `192.168.50.179` to
 `52:54:00:c7:1f:f3`. Use the reserved address for long-lived automation;
@@ -69,10 +76,14 @@ The `codex` identity has two narrowly scoped integrations:
   `/home/codex/.config/komodo/komodo.cli.toml`, mode `0600`.
 - A forced-command SSH key for Arc. The matching Unraid entry permits only the
   commands defined by `unraid-readonly-wrapper.sh`; it does not provide a
-  shell, forwarding, or arbitrary root execution.
+  shell, forwarding, or arbitrary root execution. Its public-key fingerprint
+  is `SHA256:KAo11QivnAP/hpB5odluG2bDbAs0QGpXCh7LZRC55O0`.
 
-Generate the replacement Forge GitHub key only after installation. The legacy
-VM's key and fingerprint are not identities of the replacement guest.
+Forge's replacement GitHub Ed25519 key exists as
+`/home/luqmaan/.ssh/github_forge_ed25519`; its fingerprint is
+`SHA256:3hvdNG7n6XEwI1ZJLKLatJoNA4Vfoflg361fq0gfZ3A`. Adding the public half to
+the GitHub account remains a user-controlled step. The legacy VM's key and
+fingerprint are not identities of the replacement guest.
 
 Komodo Periphery `2.2.0` runs as a root systemd service in outbound mode to
 `https://komodo.arc.bonfireboogie.com`. It opens no inbound port, uses a
@@ -107,13 +118,16 @@ and agent-service credentials must never be committed here.
 
 Directories are setgid and have default ACLs so new files remain writable by
 `agent-workspace`. Per-agent worktrees and build directories reduce concurrent
-edit and build collisions.
+edit and build collisions. The mount root is mode `3770`: its sticky bit
+prevents an agent from replacing root-owned top-level control entries while
+preserving group collaboration. `/workspace/.system/beszel` is a root-only
+mount marker used solely to report workspace filesystem metrics.
 
 ## Rebuild artifacts
 
 - `Forge.xml` is the secret-free replacement definition. It includes stock
   Unraid VNC and the separately prepared workspace disk, but no passthrough
-  device or VNC secret. Remove the installer ISO after provisioning.
+  device, installer ISO, or VNC secret.
 - `legacy/Forge-Legacy.xml` is the headless rollback definition. It uses a
   noncanonical MAC and cannot collide with Forge's reserved DHCP identity.
 - `bootstrap.sh` installs the guest baseline and safely initializes an empty
@@ -121,8 +135,15 @@ edit and build collisions.
   no key is embedded.
 - `stabilize.sh` applies the mandatory Kubuntu 26.04 shadow-stack/fwupd and
   Q35 iTCO containment before the rest of bootstrap work.
+- `configure-integrations.sh` installs pinned, checksummed Periphery and `km`
+  `2.2.0` binaries; configures outbound-only Periphery and the restricted
+  `codex` integrations; stages observability files; and removes one-time
+  Komodo credentials after use.
 - `unraid-readonly-wrapper.sh` is installed on Arc at the same path as this
   repository copy and is the allowlist behind the Forge-to-Unraid SSH key.
+- `authorize-unraid-agent-key.sh` runs on Arc and atomically installs that
+  public key with the source-IP, `restrict`, and forced-command controls. It
+  refuses a writable wrapper, unsafe input file, or conflicting prior key.
 - `stacks/forge-observability` contains the outbound Beszel agent, a
   GET-filtered Docker proxy exposed only as a root-only Unix socket, and the
   hidden-prompt enrollment helper.
@@ -165,23 +186,108 @@ partition table, or filesystem signature.
 ### Post-bootstrap integrations
 
 The guest bootstrap intentionally does not embed infrastructure credentials.
-Rebuilds therefore finish with these explicit steps:
+The current guest has completed the following integration pass:
 
-1. Install the pinned Periphery version, configure outbound access to
-   `https://komodo.arc.bonfireboogie.com`, and keep general/container terminal APIs
-   disabled. Register Forge and its Files-on-host observability stack in
-   Komodo only after TLS validation succeeds.
-2. Install `stacks/forge-observability/enroll-beszel.py` as root at
-   `/usr/local/sbin/enroll-forge-beszel`, and install its Compose file under
-   `/etc/komodo/stacks/forge-observability`. Run enrollment only through its
-   hidden prompts.
-3. Generate Forge's GitHub Ed25519 key locally as `luqmaan`; add only its
-   public half to GitHub and pin GitHub's published host key.
-4. Recreate the narrowly scoped Forge-to-Arc diagnostic key and Komodo CLI
-   profile without placing either secret in this repository.
-5. Configure RDP for the `luqmaan` desktop and add the connection in Termix.
-   Keep stock Unraid VNC as installation/break-glass access until RDP has been
-   tested end to end.
+1. Pinned Periphery `2.2.0` connects outbound to
+   `https://komodo.arc.bonfireboogie.com`; general and container terminal APIs
+   are disabled. The existing Komodo server and Files-on-host observability
+   stack are healthy.
+2. `enroll-forge-beszel` and the observability Compose file are installed in
+   their documented locations. Forge is enrolled, its two-container stack is
+   deployed, and the one-time enrollment files were deleted.
+3. The `codex` Komodo CLI profile works, and the forced-command Arc key passed
+   both its allowlisted `host-summary` test and an arbitrary-command rejection
+   test. The one-time Komodo onboarding key was removed and revoked.
+4. Forge's GitHub key was generated and GitHub's published Ed25519 host key was
+   pinned. Only uploading the public key to the GitHub account remains.
+5. xRDP is configured and TCP 3389 is reachable end to end. The live Termix
+   desktop entry still needs its one-time UI conversion from legacy VNC to RDP;
+   leave its username/password blank so xRDP presents the guest login screen,
+   and disable Termix session recording.
+
+For a clean rebuild, replay the tracked integration flow as follows:
+
+1. In Komodo, create or reset the existing `Forge` server's one-time onboarding
+   key and retain both returned values: its secret and its public key. Prepare a
+   scoped Komodo API key/secret that can inspect the server and revoke the
+   onboarding key.
+2. On Forge, create a root-only staging directory:
+
+   ```bash
+   sudo install -d -o root -g root -m 0700 /run/forge-integrations
+   ```
+
+   Populate these exact root-owned filenames. Credential files must be mode
+   `0600`; all other files must be regular, nonsymlink files with no
+   group/other write bit.
+
+   | Staged filename | Source |
+   | --- | --- |
+   | `onboarding-key` | One-time Komodo onboarding secret |
+   | `onboarding-public-key` | Public key returned with that onboarding secret |
+   | `api-key` / `api-secret` | Scoped Komodo API credential |
+   | `compose.yaml` | `forge/stacks/forge-observability/compose.yaml` |
+   | `enroll-beszel.py` | `forge/stacks/forge-observability/enroll-beszel.py` |
+   | `stabilize.sh` | `forge/stabilize.sh` |
+   | `unraid-host-ed25519.pub` | Arc's `/etc/ssh/ssh_host_ed25519_key.pub` |
+
+3. Install and run the integration helper from a root-owned copy:
+
+   ```bash
+   sudo install -o root -g root -m 0750 \
+     forge/configure-integrations.sh \
+     /usr/local/sbin/configure-forge-integrations
+   sudo STAGE_DIR=/run/forge-integrations \
+     /usr/local/sbin/configure-forge-integrations
+   ```
+
+   The helper verifies Forge becomes healthy in Core, removes the onboarding
+   secret from Periphery, reconnects using its persisted identity, revokes the
+   Core-side onboarding key, and deletes the staged Komodo credentials. A
+   failed run also strips any embedded onboarding secret before exiting. If
+   Core revocation cannot be confirmed, it retains the root-only
+   `onboarding-public-key` file and prints a warning; revoke that exact key in
+   Komodo before retrying.
+4. Copy `/home/codex/.ssh/unraid_readonly_ed25519.pub` to a root-owned temporary
+   file on Arc, then run:
+
+   ```bash
+   # First installation:
+   /mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh \
+     /tmp/forge-codex-unraid-readonly.pub
+
+   # Replacement guest with the prior marked entry still present:
+   /mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh \
+     --rotate /tmp/forge-codex-unraid-readonly.pub
+   ```
+
+   On a replacement guest, review the existing marked key and add `--rotate`
+   before the public-key path. The helper then atomically replaces only the
+   previously restricted `forge-codex-unraid-readonly` entry and prints both
+   fingerprints. Remove the temporary public file after authorization and verify
+   `sudo -H -u codex ssh unraid host-summary` succeeds while an arbitrary
+   command is rejected.
+5. Enroll Beszel only after the preceding trust paths pass. A normal Beszel
+   user automatically owns the new record. When authenticating as a Beszel
+   superuser, also provide the intended 15-character normal-user record ID at
+   the hidden prompt, or through a root-owned mode-`0600` file referenced by
+   `BESZEL_OWNER_USER_ID_FILE`; the helper never guesses ownership from a
+   system name.
+
+   ```bash
+   # On Forge:
+   sudo /usr/local/sbin/enroll-forge-beszel
+
+   # On Arc, after enrollment succeeds:
+   printf '\n' |
+     docker exec -i komodo km execute deploy-stack forge-observability
+   docker exec komodo km list stacks \
+     --all --format json --name forge-observability
+   ```
+
+   Finish by confirming both containers are running, the agent log reports a
+   WebSocket connection to `beszel.arc.bonfireboogie.com`, and the Beszel Hub
+   reports Forge `up`.
 
 ## Operational checks
 
@@ -206,18 +312,21 @@ health check.
 Inside Forge:
 
 ```bash
-systemctl is-active ssh qemu-guest-agent docker containerd
+systemctl is-active ssh qemu-guest-agent docker containerd xrdp periphery
 findmnt /workspace
 swapon --show
 docker version
 docker compose version
-systemctl is-active periphery
+sudo -H -u codex km core-info
+sudo -H -u codex ssh unraid host-summary
 systemctl is-enabled fwupd.service fwupd-refresh.service fwupd-refresh.timer
 modprobe -n -v iTCO_wdt
 ```
 
-The expected results are: core runtime services active, all three fwupd units
-`masked`, and the dry-run modprobe ending in `install /bin/false`.
+The expected results are: core runtime services active; Komodo Core metadata
+returned; the restricted Arc summary returned without a shell; all three fwupd
+units `masked`; and the dry-run modprobe ending in `install /bin/false`.
+`virsh dominfo Forge` on Arc should report `Autostart: enable`.
 
 ## Platform containment
 
@@ -253,12 +362,15 @@ Tradeoffs: Forge gives up the user-space CET shadow-stack mitigation, guest
 firmware updates, and the Q35 internal watchdog. Re-enable none of them until
 the corresponding platform failure is independently fixed and requalified.
 
-Forge uses Unraid's stock auto-assigned VNC console. The tracked XML contains
-no secret; set a VNC password through Unraid/libvirt at runtime if the console
-must remain available. Until then, treat the raw VNC listener as trusted-LAN
-only: never port-forward it or expose it to an untrusted network. Once RDP is
-working through Termix, VNC can be disabled except when break-glass access is
-needed.
+Forge uses xRDP as its normal remote desktop path and retains Unraid's stock
+auto-assigned VNC console for trusted-LAN break-glass access. The tracked XML
+contains no secret; set a VNC password through Unraid/libvirt at runtime if the
+console must remain available. Until then, never port-forward the raw VNC
+listener or expose it to an untrusted network. The XML listens on `0.0.0.0`,
+so this trust boundary is operational rather than interface-enforced: routed
+tailnet clients can also reach it through Arc's subnet route. Configure a
+runtime VNC password or a management-network ACL if every LAN/tailnet device is
+not trusted.
 
 The bootstrap installs the Xorg core and input packages as a fallback while
 leaving Kubuntu's supported Wayland greeter/session default intact. If Unraid

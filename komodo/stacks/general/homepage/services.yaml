@@ -102,7 +102,7 @@
     - Forge Console:
         icon: linux.svg
         href: https://termix.arc.bonfireboogie.com
-        description: Forge desktop through Termix RDP after provisioning
+        description: Forge desktop through xRDP (Termix entry setup pending)
 
 - Network & Cloud:
     - ASUS Router:

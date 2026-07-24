@@ -4,7 +4,9 @@
 import getpass
 import json
 import os
+import re
 import ssl
+import stat
 import sys
 import tempfile
 import urllib.error
@@ -26,6 +28,33 @@ os.umask(0o077)
 
 class ApiError(RuntimeError):
     """Beszel enrollment failure with a deliberately non-sensitive message."""
+
+
+def credential(prompt, variable):
+    path_value = os.environ.get(variable)
+    if not path_value:
+        return getpass.getpass(prompt)
+
+    path = Path(path_value)
+    try:
+        metadata = path.lstat()
+    except OSError:
+        raise ApiError(f"{variable} does not reference a readable file") from None
+
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or path.is_symlink()
+        or metadata.st_uid != 0
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+    ):
+        raise ApiError(
+            f"{variable} must reference a regular root-owned mode-0600 file"
+        )
+
+    try:
+        return path.read_text(encoding="utf-8").rstrip("\r\n")
+    except OSError:
+        raise ApiError(f"{variable} could not be read") from None
 
 
 def api(path, method="GET", payload=None, auth=None):
@@ -56,6 +85,24 @@ def api(path, method="GET", payload=None, auth=None):
         ) from None
 
 
+def authenticate(identity, password):
+    failures = []
+    for collection in ("users", "_superusers"):
+        try:
+            result = api(
+                f"/api/collections/{collection}/auth-with-password",
+                "POST",
+                {"identity": identity, "password": password},
+            )
+            return result, collection
+        except ApiError as error:
+            failures.append(str(error))
+
+    raise ApiError(
+        "Beszel authentication failed for both user and superuser accounts"
+    ) from None
+
+
 def stage(path, value):
     descriptor, temporary = tempfile.mkstemp(
         prefix=f".{path.name}.", dir=path.parent
@@ -80,8 +127,12 @@ def main():
     if os.geteuid() != 0:
         raise ApiError("Run this helper with sudo")
 
-    identity = getpass.getpass("Beszel email (hidden): ").strip()
-    password = getpass.getpass("Beszel password (hidden): ")
+    identity = credential(
+        "Beszel email (hidden): ", "BESZEL_IDENTITY_FILE"
+    ).strip()
+    password = credential(
+        "Beszel password (hidden): ", "BESZEL_PASSWORD_FILE"
+    )
     system_id = None
     jwt = None
     temporary_key = None
@@ -89,18 +140,29 @@ def main():
     committed = []
 
     try:
-        auth = api(
-            "/api/collections/users/auth-with-password",
-            "POST",
-            {"identity": identity, "password": password},
-        )
+        auth, auth_collection = authenticate(identity, password)
         jwt = auth.get("token", "")
         user = auth.get("record") or {}
-        if not jwt or user.get("role") not in ("admin", "user"):
+        normal_user = user.get("role") in ("admin", "user")
+        superuser = auth_collection == "_superusers"
+        if not jwt or not (normal_user or superuser):
             raise ApiError(
-                "Authentication did not return a writable normal-user session"
+                "Authentication did not return a writable Beszel session"
             )
         del password, identity, auth
+
+        if superuser:
+            owner_id = credential(
+                "Beszel owner user record ID (hidden): ",
+                "BESZEL_OWNER_USER_ID_FILE",
+            ).strip()
+            if not re.fullmatch(r"[A-Za-z0-9]{15}", owner_id):
+                raise ApiError(
+                    "The Beszel owner user record ID has an unexpected format"
+                )
+            owner_ids = [owner_id]
+        else:
+            owner_ids = [user["id"]]
 
         info = api("/api/beszel/info", auth=jwt)
         public_key = info.get("key", "")
@@ -125,7 +187,18 @@ def main():
             raise ApiError("An agent secret file already exists")
 
         agent_token = str(uuid.uuid4())
-        SECRET_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if SECRET_DIR.exists():
+            directory_metadata = SECRET_DIR.lstat()
+            if (
+                not stat.S_ISDIR(directory_metadata.st_mode)
+                or SECRET_DIR.is_symlink()
+                or directory_metadata.st_uid != 0
+            ):
+                raise ApiError(
+                    "The Beszel secret directory is not a root-owned directory"
+                )
+        else:
+            SECRET_DIR.mkdir(parents=True, mode=0o700)
         os.chmod(SECRET_DIR, 0o700)
         temporary_key = stage(KEY_PATH, public_key)
         temporary_token = stage(TOKEN_PATH, agent_token)
@@ -137,7 +210,7 @@ def main():
                 "name": NAME,
                 "host": HOST,
                 "port": PORT,
-                "users": user["id"],
+                "users": owner_ids,
             },
             jwt,
         )

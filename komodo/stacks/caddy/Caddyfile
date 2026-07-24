@@ -116,8 +116,9 @@ arc.bonfireboogie.com {
 	}
 }
 
-# Keep the original home.arpa aliases available during migration. They retain
-# Caddy's private CA and can be removed once every client/bookmark is migrated.
+# Retain the original home.arpa handlers as dormant migration aliases. Their
+# DNS rewrites are gone, so they resolve only with an explicit client mapping.
+# They still use Caddy's private CA when deliberately addressed.
 caddy.arc.home.arpa {
 	import private_tls
 	respond "Caddy on Arc is healthy" 200

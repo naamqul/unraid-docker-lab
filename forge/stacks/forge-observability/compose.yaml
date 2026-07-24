@@ -43,6 +43,7 @@ services:
       HUB_URL: https://beszel.arc.bonfireboogie.com
       DISABLE_SSH: "true"
       DOCKER_HOST: unix:///beszel-docker-api/docker.sock
+      FILESYSTEM: /host-filesystems/root
       KEY_FILE: /run/secrets/beszel-key
       TOKEN_FILE: /run/secrets/beszel-token
     volumes:
@@ -50,6 +51,8 @@ services:
       - /etc/beszel-agent/token:/run/secrets/beszel-token:ro
       - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
       - /var/lib/beszel-agent:/var/lib/beszel-agent
+      - /var/lib/beszel-root:/host-filesystems/root:ro
+      - /workspace/.system/beszel:/extra-filesystems/vdb1__Workspace:ro
       - beszel-docker-api:/beszel-docker-api:ro
     tmpfs:
       - /tmp

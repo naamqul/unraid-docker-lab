@@ -129,10 +129,11 @@ The primary, publicly trusted names are:
 | `hermes-api.arc.bonfireboogie.com` | `gluetun:8642` |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 
-The prior `.arc.home.arpa` Caddy sites remain temporary aliases during the
-migration. Do not use subdomains of `arc.local`: `.local` is reserved for
-multicast DNS, and wildcard/unicast records beneath it are unreliable across
-operating systems and Tailscale.
+The prior `.arc.home.arpa` Caddy handlers remain as dormant migration aliases.
+Their NextDNS rewrites were removed, so they resolve only on a client with an
+explicit hosts or DNS mapping. Do not use subdomains of `arc.local`: `.local`
+is reserved for multicast DNS, and wildcard/unicast records beneath it are
+unreliable across operating systems and Tailscale.
 
 ### One-time setup
 
@@ -208,8 +209,9 @@ operating systems and Tailscale.
 The custom image pins Caddy `2.11.4` plus `caddy-dns/porkbun` `v0.3.1`.
 Porkbun DNS-01 challenges issue a publicly trusted base certificate and
 wildcard certificate without opening WAN ports. New clients need no private
-CA installation. The old `.arc.home.arpa` aliases still use Caddy's internal
-CA during migration. Caddy's persisted `/data` contains the internal CA key,
+CA installation. The dormant `.arc.home.arpa` handlers still use Caddy's
+internal CA if a client supplies an explicit DNS or hosts mapping. Caddy's
+persisted `/data` contains the internal CA key,
 ACME account data, and issued private keys; `/mnt/user/appdata/caddy-state`
 must therefore be backed up only as sensitive encrypted data. Never distribute
 its private keys. The ignored Caddy `.env` contains the Porkbun API
@@ -291,11 +293,13 @@ printf '\n' | docker exec -i komodo km execute deploy-stack ai
 printf '\n' | docker exec -i komodo km execute deploy-stack caddy
 printf '\n' | docker exec -i komodo km execute deploy-stack general
 printf '\n' | docker exec -i komodo km execute deploy-stack jellyfin
+printf '\n' | docker exec -i komodo km execute deploy-stack forge-observability
 ```
 
 Forge also has a **Files on host** stack named `forge-observability`, on server
-`Forge`, rooted at `/etc/komodo/stacks/forge-observability`. It remains stopped
-until its dedicated Beszel key and token have been enrolled.
+`Forge`, rooted at `/etc/komodo/stacks/forge-observability`. It is deployed and
+runs an outbound-only Beszel agent plus a GET-filtered Docker socket proxy; no
+inbound Forge port is required.
 
 ## General services
 
@@ -359,14 +363,15 @@ rsync -a --no-owner --no-group --no-perms SOURCE/ root@arc:/mnt/user/booty/
 With a modern rsync on both ends, an explicit alternative is
 `--chown=nobody:users --chmod=D2775,F0664`.
 
-### Complete Beszel enrollment
+### Beszel enrollment and recovery
 
-The Hub starts immediately, while its local agent is intentionally behind the
-`beszel-agent` Compose profile because the Hub generates the required key and
-token during enrollment:
+Beszel Hub and both enrolled systems are operational. `Arc Agent` uses the
+local Unix socket and Forge uses an outbound WebSocket. For a clean rebuild,
+Arc's local agent remains behind the `beszel-agent` Compose profile until the
+Hub has generated its key and per-system token:
 
 1. Open `https://beszel.arc.bonfireboogie.com` and create the first account.
-2. Add a system named `Arc` using the Unix socket
+2. Add a system named `Arc Agent` using the Unix socket
    `/beszel_socket/beszel.sock`. Use that system's individual enrollment
    instructions rather than a universal token.
 3. Put the displayed Hub public key and per-system token in `general/.env` as
@@ -381,20 +386,23 @@ published.
 
 Forge uses a separate outbound-only agent and Unix-socket proxy. Its tracked
 Compose file and enrollment helper are in
-`forge/stacks/forge-observability`. To finish enrollment without copying a
-credential into shell history:
+`forge/stacks/forge-observability`. The current system is enrolled and the
+stack is running. If disaster recovery requires re-enrollment, first remove
+the stale Forge record and local `/etc/beszel-agent` secrets, then run:
 
 ```bash
 ssh forge
 sudo /usr/local/sbin/enroll-forge-beszel
 ```
 
-Enter the existing Beszel login only at the hidden prompts, then deploy the
+Enter the existing Beszel login only at the hidden prompts, then redeploy the
 already-registered `forge-observability` stack from Komodo. No port is opened
 in Forge's firewall: the agent initiates its authenticated WebSocket to
 `https://beszel.arc.bonfireboogie.com`. The agent mounts Forge's public system
 CA bundle read-only and validates Caddy's publicly trusted certificate; no
-Caddy private key is present in the container.
+Caddy private key is present in the container. Superuser enrollment also asks
+for the intended normal-user record ID so ownership is explicit rather than
+inferred from another system's display name.
 
 ### Termix and the Forge console
 
@@ -403,20 +411,22 @@ port. Termix reaches `termix-guacd` only across the internal `termix-private`
 control bridge; guacd has a separate unprivileged egress bridge for outbound
 remote-desktop connections. Neither service publishes guacd to the LAN.
 
-Forge installation and break-glass access use the stock Unraid VNC console,
-not Termix. After the guest is provisioned, Termix should use RDP directly to
-Forge's reserved address.
+Forge installation and break-glass access use the stock Unraid VNC console.
+xRDP is installed, enabled, and reachable directly at Forge's reserved address;
+the live Termix desktop entry still needs its one-time UI conversion from the
+legacy VNC target to RDP.
 
 The first administrator and a passkey are enrolled. Registration is disabled
 both in Termix's persisted settings and with
-`ALLOW_REGISTRATION: "false"` in `general/compose.yaml`; session recording is
-not configured. The managed connections are:
+`ALLOW_REGISTRATION: "false"` in `general/compose.yaml`. The two SSH entries
+are operational. Before using the desktop entry, change it to the desired RDP
+settings below and explicitly disable session recording:
 
 | Termix entry | Protocol | Target | Account |
 | --- | --- | --- | --- |
 | `Arc / Unraid` | SSH | `192.168.50.51:22` | `root` |
 | `Forge` | SSH | `192.168.50.179:22` | `luqmaan` |
-| `Forge Desktop (Kubuntu)` | RDP | `192.168.50.179:3389` | `luqmaan` |
+| `Forge Desktop (Kubuntu)` | RDP (UI conversion pending) | `192.168.50.179:3389` | xRDP login screen |
 
 Arc and Forge use separate Termix-generated Ed25519 credentials; neither
 reuses the Windows administrative key or Forge's GitHub key. Their authorized
@@ -428,15 +438,18 @@ administration requires `sudo` because `luqmaan` is intentionally not a member
 of the root-equivalent `docker` group.
 Verify each server's host-key fingerprint when Termix first presents it.
 
-Termix stores private SSH keys and remote-desktop credentials in its encrypted
-database. The one-time API key used for provisioning was revoked and its
-handoff file deleted immediately after end-to-end SSH authentication tests
-passed. Never export the Termix hosts or credentials into an unencrypted file.
+Termix stores private SSH keys and any configured remote-desktop credentials
+in its encrypted database. For Forge RDP, leave username, password, and domain
+blank so Termix stores no guest login and xRDP prompts at connection time. The
+one-time API key used for provisioning was revoked and its handoff file deleted
+immediately after end-to-end SSH authentication tests passed. Never export the
+Termix hosts or credentials into an unencrypted file.
 
 Stock Unraid VNC is unauthenticated unless a runtime password is configured.
-Never port-forward its raw listener; use it only from a trusted management
-network and disable it once the Termix RDP path is proven. Do not publish
-guacd.
+It is retained for trusted-LAN break-glass access but is not the normal desktop
+path. Its `0.0.0.0` listener is also reachable to trusted tailnet clients
+through Arc's subnet route; use a runtime password or management ACL if that
+trust scope is too broad. Never port-forward its raw listener or publish guacd.
 The separate powered-down VFIO VM named `Kubuntu` intentionally has no
 libvirt VNC device: adding an emulated display alongside its passed-through
 iGPU previously stalled Plasma. `Forge Desktop (Kubuntu)` is the supported

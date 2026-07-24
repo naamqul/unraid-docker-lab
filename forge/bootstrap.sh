@@ -189,7 +189,7 @@ WORKSPACE_UUID="$(blkid -s UUID -o value "${WORKSPACE_PARTITION}")"
   exit 1
 }
 
-install -d -o root -g agent-workspace -m 2770 /workspace
+install -d -o root -g agent-workspace -m 3770 /workspace
 
 mapfile -t WORKSPACE_FSTAB_SOURCES < <(
   awk '$1 !~ /^#/ && $2 == "/workspace" { print $1 }' /etc/fstab
@@ -219,7 +219,7 @@ WORKSPACE_PARTITION_RESOLVED="$(readlink -f "${WORKSPACE_PARTITION}")"
 }
 
 chown root:agent-workspace /workspace
-chmod 2770 /workspace
+chmod 3770 /workspace
 
 install -d -o root -g agent-workspace -m 2770 \
   /workspace/repos \
