@@ -15,6 +15,8 @@ runtime_xml="$(mktemp /tmp/Forge.runtime.XXXXXX)"
 secret_dir=/boot/config/secrets
 password_file=${secret_dir}/forge-vnc-password
 vnc_marker="    <!-- FORGE_VNC_RUNTIME_PLACEHOLDER -->"
+expected_uuid=1528c7a1-af0a-2d8c-11eb-6c9e2a0faeb0
+expected_mac=52:54:00:c7:1f:f3
 
 chmod 0600 "${runtime_xml}"
 trap 'rm -f -- "${runtime_xml}"' EXIT
@@ -25,6 +27,22 @@ if state="$(virsh domstate Forge 2>/dev/null)"; then
     exit 1
   }
 fi
+
+if state="$(virsh domstate Forge-Legacy 2>/dev/null)"; then
+  [[ "${state}" == "shut off" ]] || {
+    echo "Forge-Legacy must remain off while assigning canonical Forge access." >&2
+    exit 1
+  }
+fi
+
+grep -Fq "<uuid>${expected_uuid}</uuid>" "${source_xml}" || {
+  echo "Tracked Forge UUID does not match the canonical replacement VM." >&2
+  exit 1
+}
+grep -Fq "<mac address='${expected_mac}'/>" "${source_xml}" || {
+  echo "Tracked Forge MAC does not match the reserved network identity." >&2
+  exit 1
+}
 
 if docker network inspect "${network}" >/dev/null 2>&1; then
   docker network inspect "${network}" |

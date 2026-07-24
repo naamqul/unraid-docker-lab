@@ -48,8 +48,8 @@ apt-get update
 
 apt-get install -y \
   qemu-guest-agent spice-vdagent \
-  xserver-xorg-core xserver-xorg-video-qxl \
-  xserver-xorg-input-libinput xcvt \
+  xserver-xorg-core xserver-xorg-input-libinput xcvt \
+  plasma-session-x11 kwin-x11 \
   openssh-server unattended-upgrades ufw \
   ca-certificates curl wget gnupg \
   git git-lfs gh \
@@ -89,7 +89,9 @@ usermod -aG sudo,sshlogin,agent-workspace "${ADMIN_USER}"
 
 for user in codex claude hermes; do
   if ! id "${user}" >/dev/null 2>&1; then
-    useradd --create-home --shell /bin/bash "${user}"
+    # Agent identities are non-interactive service principals. Keeping their
+    # UIDs below the normal-login range also keeps them out of SDDM.
+    useradd --system --create-home --shell /usr/sbin/nologin "${user}"
   fi
 
   usermod -aG agent-workspace "${user}"

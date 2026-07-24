@@ -31,12 +31,8 @@ install iTCO_wdt /bin/false
 blacklist i6300esb
 EOF
 
-# QXL does not provide the DRM path expected by SDDM's Wayland greeter.
-install -d -m 0755 /etc/sddm.conf.d
-cat >/etc/sddm.conf.d/99-forge-vnc.conf <<'EOF'
-[General]
-DisplayServer=x11
-EOF
+# Forge uses a plain 2D VirtIO display. Leave Kubuntu's supported Wayland
+# greeter/session default intact; Plasma X11 is installed only as a fallback.
 
 # Forge is an always-on workspace, not a laptop.
 systemctl mask \

@@ -10,20 +10,24 @@ projects.
 
 | Setting | Value |
 | --- | --- |
-| Guest | Kubuntu 26.04 / Ubuntu 26.04 LTS base |
-| UUID | `2aa8ec75-6629-466d-a029-3c5b9e3865a4` |
+| Guest | Kubuntu 26.04 / Ubuntu 26.04 LTS base (installation pending) |
+| UUID | `1528c7a1-af0a-2d8c-11eb-6c9e2a0faeb0` |
 | MAC | `52:54:00:c7:1f:f3` |
-| Current DHCP address | `192.168.50.179` |
+| Reserved DHCP address | `192.168.50.179` |
 | Compute | 12 vCPU, 24 GiB RAM |
 | OS disk | `/mnt/user/domains/Forge/vdisk1.img`, 256 GiB sparse raw |
-| Workspace disk | `/mnt/user/domains/Forge/workspace.img`, 512 GiB sparse raw |
-| Workspace mount | `/workspace`, ext4, `noatime` |
-| Console | QXL plus Termix/guacd VNC; no physical GPU passthrough |
-| Startup | Unraid autostart enabled |
+| Workspace disk | Created and attached after OS installation |
+| Workspace mount | `/workspace`, ext4, `noatime` (post-bootstrap) |
+| Console | 2D VirtIO plus private Termix/guacd VNC; no GPU passthrough |
+| Startup | Disabled until the replacement passes validation |
 
 The ASUS DHCP reservation binds `192.168.50.179` to
 `52:54:00:c7:1f:f3`. Use the reserved address for long-lived automation;
 `forge.local` remains a convenience name supplied by router DNS.
+
+`Forge-Legacy` retains the previous disks and NVRAM as rollback, but is
+headless, non-autostarting, and uses MAC `52:54:00:91:8f:2b`. Never start both
+guests with the canonical Forge MAC or VNC port.
 
 Forge does not run its own Tailscale node. Arc is already online as a Tailscale
 subnet router for `192.168.50.0/24`, so remote tailnet clients can reach Forge
@@ -41,9 +45,10 @@ Host forge
   IdentitiesOnly yes
 ```
 
-SSH is key-only, root login is disabled, and UFW accepts port 22 only from
-`192.168.50.0/24`. Arc's routed Tailscale traffic arrives from the home subnet,
-so the same rule covers remote access through the existing subnet router.
+After provisioning, SSH is key-only, root login is disabled, and UFW accepts
+port 22 only from `192.168.50.0/24`. Arc's routed Tailscale traffic arrives
+from the home subnet, so the same rule covers remote access through the
+existing subnet router.
 
 `codex`, `claude`, and `hermes` are locked service identities. They share only
 the `agent-workspace` group and are deliberately absent from `sudo`, `docker`,
@@ -58,10 +63,8 @@ The `codex` identity has two narrowly scoped integrations:
   commands defined by `unraid-readonly-wrapper.sh`; it does not provide a
   shell, forwarding, or arbitrary root execution.
 
-Forge also has a dedicated GitHub SSH key at
-`/home/luqmaan/.ssh/github_ed25519`. Its fingerprint is
-`SHA256:ix4WlFsg2J7yfkmbPU8lVniBeOFqUncfSIA6dQC2Gwc`; the private key never
-leaves Forge. Add only its `.pub` value to the intended GitHub account.
+Generate the replacement Forge GitHub key only after installation. The legacy
+VM's key and fingerprint are not identities of the replacement guest.
 
 Komodo Periphery `2.2.0` runs as a root systemd service in outbound mode to
 `https://komodo.arc.home.arpa`. It opens no inbound port, trusts only Caddy's
@@ -99,10 +102,12 @@ edit and build collisions.
 
 ## Rebuild artifacts
 
-- `Forge.xml` is the secret-free libvirt definition captured after
-  installation. It contains no installer ISO, temporary bootstrap share,
-  passthrough device, or live VNC definition. Defining it directly therefore
-  produces a headless VM rather than an unauthenticated console.
+- `Forge.xml` is the secret-free replacement definition. During installation
+  it includes the Kubuntu ISO but no workspace disk, passthrough device, or
+  live VNC secret. After installation, remove the ISO and attach the separately
+  prepared workspace disk.
+- `legacy/Forge-Legacy.xml` is the headless rollback definition. It uses a
+  noncanonical MAC and cannot collide with Forge's private VNC listener.
 - `bootstrap.sh` installs the guest baseline and safely initializes an empty
   512 GiB `/dev/vdb` as `/workspace`. It requires an external public key file;
   no key is embedded.
@@ -122,7 +127,25 @@ edit and build collisions.
 
 Kubuntu's desktop ISO uses Calamares and does not support Ubuntu Server's
 Subiquity autoinstall format. Rebuilding therefore has one interactive install
-stage through Unraid VNC, followed by the scripted baseline:
+stage followed by the scripted baseline. Start the VM from Unraid, then open
+the existing **Forge Desktop (Kubuntu)** connection in Termix; it now reaches
+the replacement VM through the private VNC listener.
+
+At the ISO boot menu, edit the `Try or Install Kubuntu` entry and append
+`nousershstk` to the Linux kernel line before booting it. Use:
+
+- display name `Luqmaan`, login `luqmaan`;
+- hostname `forge`;
+- the 256 GiB VirtIO disk as the only installation target;
+- no guest full-disk encryption unless manual console unlock after every
+  reboot is acceptable;
+- no automatic login.
+
+Before the first installed-system boot, append `nousershstk` to its GRUB entry
+once as well. Run `stabilize.sh` immediately after the first login so the
+setting, fwupd masks, and iTCO hard block become persistent.
+
+Then run:
 
 ```bash
 sudo ADMIN_PUBKEY_FILE=/tmp/forge-admin.pub ./bootstrap.sh
