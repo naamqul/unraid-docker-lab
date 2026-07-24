@@ -203,7 +203,13 @@ The current guest has completed the following integration pass:
 5. xRDP is configured and TCP 3389 is reachable end to end. The live Termix
    desktop entry uses RDP at `192.168.50.179:3389`, reaches the xRDP login
    screen, stores no guest username or password, and has session recording
-   disabled. Its display profile is 3840x2160 at 144 DPI (150% scaling).
+   disabled. Stock Termix 2.5.1 resizes the live session to its browser canvas,
+   regardless of the profile's saved initial dimensions, so the desktop is
+   viewport-responsive rather than fixed at 3840x2160. KDE scaling is a
+   separate guest setting; use a native RDP client later if fixed 4K at 150%
+   scaling is required. Closing an unrecorded session may emit a benign
+   `guac_recording_missing` warning in Termix 2.5.1 even though no recording is
+   enabled or created.
 
 For a clean rebuild, replay the tracked integration flow as follows:
 

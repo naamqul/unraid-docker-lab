@@ -24,6 +24,9 @@ services:
         ipv4_address: ${CADDY_LAN_IP}
         mac_address: ${CADDY_LAN_MAC}
       caddy-backend:
+        # Keep this stable so Jellyfin can trust only Caddy, not every
+        # container attached to the shared backend network.
+        ipv4_address: ${CADDY_BACKEND_IP:-172.20.0.10}
     labels:
       net.unraid.docker.webui: "https://caddy.arc.bonfireboogie.com/"
 

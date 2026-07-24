@@ -76,8 +76,9 @@ Komodo can manage the application stacks below `komodo/stacks/`.
   `/mnt/user/appdata/komodo-state` and must be included in appdata backups.
 - Komodo database exports are written to
   `/mnt/user/appdata/komodo-state/backups`.
-- Open WebUI data is stored outside the repository at
-  `/mnt/user/appdata/open-webui-state/data`.
+- Open WebUI's reserved data path is outside the repository at
+  `/mnt/user/appdata/open-webui-state/data`; the service is not currently
+  deployed.
 - The real `.env` is intentionally excluded from Git and must be backed up
   securely through a separate encrypted mechanism.
 
@@ -95,7 +96,9 @@ backup policy are intentionally separate follow-up work.
 Caddy owns `192.168.50.52` on Docker's Unraid-managed `br0` network. It also
 joins the external `caddy-backend` bridge, which lets it reach application
 containers directly without sending backend traffic through host-published
-ports.
+ports. Its backend address is pinned to `172.20.0.10`, allowing applications
+to trust Caddy specifically instead of trusting every container on the shared
+bridge.
 
 The `unraid-webui-bridge` helper is attached only to `caddy-backend`. It exists
 because Unraid's macvlan host isolation prevents the main Caddy container on
@@ -124,9 +127,9 @@ The primary, publicly trusted names are:
 | `jdownloader.arc.bonfireboogie.com` | `general-gluetun:5800` |
 | `filebrowser.arc.bonfireboogie.com` | `filebrowser:80` |
 | `searxng.arc.bonfireboogie.com` | `general-gluetun:8080` |
-| `open-webui.arc.bonfireboogie.com` | `gluetun:8080` |
-| `hermes.arc.bonfireboogie.com` | `gluetun:9119` |
-| `hermes-api.arc.bonfireboogie.com` | `gluetun:8642` |
+| `open-webui.arc.bonfireboogie.com` | Reserved for planned Open WebUI (`gluetun:8080`) |
+| `hermes.arc.bonfireboogie.com` | Reserved for planned Hermes dashboard (`gluetun:9119`) |
+| `hermes-api.arc.bonfireboogie.com` | Reserved for planned Hermes API (`gluetun:8642`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 
 The prior `.arc.home.arpa` Caddy handlers remain as dormant migration aliases.
@@ -261,11 +264,11 @@ For an ordinary container:
 For a container using `network_mode: service:gluetun`, do not attach that
 container separately. Attach `gluetun` to `caddy-backend`, add the application's
 listening port to Gluetun's `FIREWALL_INPUT_PORTS`, and proxy to
-`gluetun:<internal-port>` as the existing Open WebUI and Hermes entries do.
+`gluetun:<internal-port>` as the reserved Open WebUI and Hermes entries do.
 
 Host-published ports on Gluetun are currently retained as a recovery path.
-After Open WebUI and Hermes work through Caddy, those `ports:` entries can be
-removed to make Caddy the only LAN entry point.
+After Open WebUI and Hermes are enabled and work through Caddy, those `ports:`
+entries can be removed to make Caddy the only LAN entry point.
 
 ## Komodo stack ownership
 
@@ -295,6 +298,11 @@ printf '\n' | docker exec -i komodo km execute deploy-stack general
 printf '\n' | docker exec -i komodo km execute deploy-stack jellyfin
 printf '\n' | docker exec -i komodo km execute deploy-stack forge-observability
 ```
+
+The `ai` stack currently deploys only its Gluetun VPN gateway. The Hermes and
+Open WebUI service definitions remain commented out in `ai/compose.yaml` and
+their Caddy names are reserved for a future deployment; neither application is
+currently running.
 
 Forge also has a **Files on host** stack named `forge-observability`, on server
 `Forge`, rooted at `/etc/komodo/stacks/forge-observability`. It is deployed and
@@ -441,11 +449,18 @@ Termix stores private SSH keys and any configured remote-desktop credentials
 in its encrypted database. For Forge RDP, leave username, password, and domain
 blank so Termix stores no guest login and xRDP prompts at connection time. The
 profile uses direct authentication, `Any` security, certificate-ignore for
-xRDP's self-signed certificate, and a 3840x2160 display at 144 DPI (150%
-scaling). Its recording path and name are blank, so session recording remains
-disabled. The one-time API key used for provisioning was revoked and its
-handoff file deleted immediately after end-to-end SSH authentication tests
-passed. Never export the Termix hosts or credentials into an unencrypted file.
+xRDP's self-signed certificate, and viewport-responsive sizing. Stock Termix
+2.5.1 replaces its saved initial dimensions with the current browser canvas
+size after connection and whenever the canvas changes, so it cannot guarantee
+a fixed 3840x2160 framebuffer. KDE's guest-side display scaling is independent
+of that RDP geometry. Use a native RDP client in a future pass if a fixed 4K
+desktop at 150% scaling is required. Its recording path and name are blank, so
+session recording remains disabled. Termix 2.5.1 may still log a benign
+`guac_recording_missing` warning when an unrecorded session closes; this does
+not mean a recording was created. The one-time API key used for provisioning
+was revoked and its handoff file deleted immediately after end-to-end SSH
+authentication tests passed. Never export the Termix hosts or credentials into
+an unencrypted file.
 
 Stock Unraid VNC is unauthenticated unless a runtime password is configured.
 It is retained for trusted-LAN break-glass access but is not the normal desktop
@@ -492,6 +507,7 @@ The host currently has no `/dev/dri`, so hardware-accelerated transcoding is
 not configured. If a supported GPU later exposes `/dev/dri`, follow Jellyfin's
 vendor-specific hardware acceleration guide before adding the device mapping.
 
-After Jellyfin's first start, open **Dashboard > Networking > Known Proxies**
-and add Caddy's address on `caddy-backend`. This lets Jellyfin trust Caddy's
-forwarded client headers and apply local/remote access policy correctly.
+Jellyfin's **Dashboard > Networking > Known Proxies** setting contains only
+`172.20.0.10`, Caddy's Compose-pinned address on `caddy-backend`. This lets
+Jellyfin trust Caddy's forwarded client headers and apply local/remote access
+policy correctly without trusting the other containers on that network.

@@ -68,7 +68,7 @@
         container: general-gluetun
     - AI VPN:
         icon: gluetun.svg
-        description: Open WebUI and Hermes tunnel
+        description: Running VPN gateway for planned AI services
         server: arc-docker
         container: gluetun
 
@@ -76,15 +76,15 @@
     - Open WebUI:
         icon: open-webui.svg
         href: https://open-webui.arc.bonfireboogie.com
-        description: Local and remote model workspace
+        description: Planned / offline — local and remote model workspace
     - Hermes Agent:
         icon: mdi-robot-outline
         href: https://hermes.arc.bonfireboogie.com
-        description: Agent dashboard
+        description: Planned / offline — agent dashboard
     - Hermes API:
         icon: mdi-api
         href: https://hermes-api.arc.bonfireboogie.com
-        description: Agent gateway API
+        description: Planned / offline — agent gateway API
     - Caddy:
         icon: caddy.svg
         href: https://caddy.arc.bonfireboogie.com
@@ -102,7 +102,7 @@
     - Forge Console:
         icon: linux.svg
         href: https://termix.arc.bonfireboogie.com
-        description: Forge desktop through xRDP (4K at 150% scaling)
+        description: Forge desktop through viewport-responsive xRDP
 
 - Network & Cloud:
     - ASUS Router:
