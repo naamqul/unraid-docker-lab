@@ -11,8 +11,8 @@ or other application using the libvirt API.
   <metadata>
     <vmtemplate xmlns="http://unraid" name="Kubuntu" icon="ubuntu.png" os="ubuntu" webui="" storage="cache"/>
   </metadata>
-  <memory unit='KiB'>25165824</memory>
-  <currentMemory unit='KiB'>25165824</currentMemory>
+  <memory unit='KiB'>50331648</memory>
+  <currentMemory unit='KiB'>8388608</currentMemory>
   <memoryBacking>
     <nosharepages/>
   </memoryBacking>
