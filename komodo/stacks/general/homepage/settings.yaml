@@ -1,6 +1,6 @@
 title: Arc Control Deck
 description: Private command center for Arc
-startUrl: https://home.arc.home.arpa
+startUrl: https://arc.bonfireboogie.com
 theme: dark
 color: slate
 headerStyle: clean
@@ -22,7 +22,7 @@ background:
 quicklaunch:
   searchDescriptions: true
   provider: custom
-  url: https://searxng.arc.home.arpa/search?q=
+  url: https://searxng.arc.bonfireboogie.com/search?q=
   target: _blank
 
 layout:

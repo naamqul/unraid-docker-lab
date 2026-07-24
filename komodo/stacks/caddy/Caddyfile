@@ -1,5 +1,16 @@
-# Private home.arpa names cannot receive publicly trusted certificates. Caddy's
-# internal CA issues and renews each certificate; clients trust its root once.
+# Publicly trusted certificates are obtained with Porkbun DNS-01 challenges.
+# The services remain private: no WAN ports are forwarded, and public DNS
+# publishes only Caddy's RFC1918 LAN address.
+
+(public_dns_tls) {
+	tls {
+		dns porkbun {
+			api_key {env.PORKBUN_API_KEY}
+			api_secret_key {env.PORKBUN_API_SECRET_KEY}
+		}
+		resolvers 1.1.1.1 8.8.8.8
+	}
+}
 
 (private_tls) {
 	tls internal
@@ -9,6 +20,104 @@ http://{$CADDY_LAN_IP} {
 	respond "Caddy on Arc is healthy" 200
 }
 
+# The apex of the private service namespace is the default landing page.
+arc.bonfireboogie.com {
+	import public_dns_tls
+	reverse_proxy homepage:3000
+}
+
+# One wildcard certificate covers every single-label Arc service name. Host
+# matchers prevent an unknown wildcard name from reaching an arbitrary backend.
+*.arc.bonfireboogie.com {
+	import public_dns_tls
+
+	@caddy host caddy.arc.bonfireboogie.com
+	handle @caddy {
+		respond "Caddy on Arc is healthy" 200
+	}
+
+	@komodo host komodo.arc.bonfireboogie.com
+	handle @komodo {
+		reverse_proxy komodo:9120
+	}
+
+	@jellyfin host jellyfin.arc.bonfireboogie.com
+	handle @jellyfin {
+		reverse_proxy jellyfin:8096
+	}
+
+	@unraid host unraid.arc.bonfireboogie.com
+	handle @unraid {
+		reverse_proxy unraid-webui-bridge:8080 {
+			header_down Location ^http://[^/]+(.*)$ https://unraid.arc.bonfireboogie.com$1
+		}
+	}
+
+	@forge host forge.arc.bonfireboogie.com
+	handle @forge {
+		respond "Forge has no HTTP service configured; use Termix for SSH or RDP" 503
+	}
+
+	@homepage host home.arc.bonfireboogie.com homepage.arc.bonfireboogie.com
+	handle @homepage {
+		reverse_proxy homepage:3000
+	}
+
+	@beszel host beszel.arc.bonfireboogie.com
+	handle @beszel {
+		reverse_proxy beszel:8090 {
+			transport http {
+				read_timeout 360s
+			}
+		}
+	}
+
+	@termix host termix.arc.bonfireboogie.com
+	handle @termix {
+		reverse_proxy termix:8080
+	}
+
+	@jdownloader host jdownloader.arc.bonfireboogie.com
+	handle @jdownloader {
+		reverse_proxy https://general-gluetun:5800 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+
+	@filebrowser host filebrowser.arc.bonfireboogie.com
+	handle @filebrowser {
+		reverse_proxy filebrowser:80
+	}
+
+	@searxng host searxng.arc.bonfireboogie.com
+	handle @searxng {
+		reverse_proxy general-gluetun:8080
+	}
+
+	@open_webui host open-webui.arc.bonfireboogie.com
+	handle @open_webui {
+		reverse_proxy gluetun:8080
+	}
+
+	@hermes host hermes.arc.bonfireboogie.com
+	handle @hermes {
+		reverse_proxy gluetun:9119
+	}
+
+	@hermes_api host hermes-api.arc.bonfireboogie.com
+	handle @hermes_api {
+		reverse_proxy gluetun:8642
+	}
+
+	handle {
+		abort
+	}
+}
+
+# Keep the original home.arpa aliases available during migration. They retain
+# Caddy's private CA and can be removed once every client/bookmark is migrated.
 caddy.arc.home.arpa {
 	import private_tls
 	respond "Caddy on Arc is healthy" 200
@@ -31,12 +140,9 @@ unraid.arc.home.arpa {
 	}
 }
 
-# Forge is provisioned at its reserved address, but it does not currently host
-# an HTTP service. Keep its private HTTPS name reserved until an application
-# endpoint exists; SSH and VNC access are provided through Termix.
 forge.arc.home.arpa {
 	import private_tls
-	respond "Forge has no HTTP service configured; use Termix for SSH or VNC" 503
+	respond "Forge has no HTTP service configured; use Termix for SSH or RDP" 503
 }
 
 home.arc.home.arpa, homepage.arc.home.arpa {

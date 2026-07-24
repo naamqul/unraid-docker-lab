@@ -3,10 +3,15 @@ name: caddy
 services:
   caddy:
     container_name: caddy
-    image: caddy:2
+    image: arc-caddy-porkbun:2.11.4
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       CADDY_LAN_IP: ${CADDY_LAN_IP}
+      PORKBUN_API_KEY: ${PORKBUN_API_KEY:?Set PORKBUN_API_KEY in .env}
+      PORKBUN_API_SECRET_KEY: ${PORKBUN_API_SECRET_KEY:?Set PORKBUN_API_SECRET_KEY in .env}
     depends_on:
       - unraid-webui-bridge
     volumes:
@@ -19,11 +24,11 @@ services:
         mac_address: ${CADDY_LAN_MAC}
       caddy-backend:
     labels:
-      net.unraid.docker.webui: "https://caddy.arc.home.arpa/"
+      net.unraid.docker.webui: "https://caddy.arc.bonfireboogie.com/"
 
   unraid-webui-bridge:
     container_name: unraid-webui-bridge
-    image: caddy:2
+    image: caddy:2.11.4
     restart: unless-stopped
     command:
       - caddy

@@ -11,7 +11,7 @@ services:
       - "8096:8096/tcp"
       - "7359:7359/udp"
     environment:
-      JELLYFIN_PublishedServerUrl: https://jellyfin.arc.home.arpa
+      JELLYFIN_PublishedServerUrl: https://jellyfin.arc.bonfireboogie.com
       TZ: America/Los_Angeles
     volumes:
       - /mnt/user/appdata/jellyfin-state/config:/config

@@ -1,23 +1,23 @@
 - Control Plane:
     - Homepage:
         icon: /android-chrome-512x512.png
-        href: https://home.arc.home.arpa
+        href: https://arc.bonfireboogie.com
         description: Arc command center
         server: arc-docker
         container: homepage
     - Unraid:
         icon: unraid.svg
-        href: https://unraid.arc.home.arpa
+        href: https://unraid.arc.bonfireboogie.com
         description: Storage, shares, VMs, and Docker
     - Komodo:
         icon: komodo.svg
-        href: https://komodo.arc.home.arpa
+        href: https://komodo.arc.bonfireboogie.com
         description: Compose and deployment control
         server: arc-docker
         container: komodo
     - Beszel:
         icon: beszel.svg
-        href: https://beszel.arc.home.arpa
+        href: https://beszel.arc.bonfireboogie.com
         description: Live Arc health and resource telemetry
         server: arc-docker
         container: beszel
@@ -37,19 +37,19 @@
 - Media & Files:
     - Jellyfin:
         icon: jellyfin.svg
-        href: https://jellyfin.arc.home.arpa
+        href: https://jellyfin.arc.bonfireboogie.com
         description: Private media streaming
         server: arc-docker
         container: jellyfin
     - JDownloader 2:
         icon: jdownloader.svg
-        href: https://jdownloader.arc.home.arpa
+        href: https://jdownloader.arc.bonfireboogie.com
         description: Downloads through the general VPN
         server: arc-docker
         container: jdownloader-2
     - FileBrowser Quantum:
         icon: filebrowser.svg
-        href: https://filebrowser.arc.home.arpa
+        href: https://filebrowser.arc.bonfireboogie.com
         description: Browse and manage the Stash share
         server: arc-docker
         container: filebrowser
@@ -57,7 +57,7 @@
 - Privacy & Search:
     - SearXNG:
         icon: searxng.svg
-        href: https://searxng.arc.home.arpa
+        href: https://searxng.arc.bonfireboogie.com
         description: Private metasearch through VPN
         server: arc-docker
         container: searxng
@@ -75,19 +75,19 @@
 - AI Lab:
     - Open WebUI:
         icon: open-webui.svg
-        href: https://open-webui.arc.home.arpa
+        href: https://open-webui.arc.bonfireboogie.com
         description: Local and remote model workspace
     - Hermes Agent:
         icon: mdi-robot-outline
-        href: https://hermes.arc.home.arpa
+        href: https://hermes.arc.bonfireboogie.com
         description: Agent dashboard
     - Hermes API:
         icon: mdi-api
-        href: https://hermes-api.arc.home.arpa
+        href: https://hermes-api.arc.bonfireboogie.com
         description: Agent gateway API
     - Caddy:
         icon: caddy.svg
-        href: https://caddy.arc.home.arpa
+        href: https://caddy.arc.bonfireboogie.com
         description: Private HTTPS edge
         server: arc-docker
         container: caddy
@@ -95,13 +95,13 @@
 - Remote Access:
     - Termix:
         icon: termix.svg
-        href: https://termix.arc.home.arpa
+        href: https://termix.arc.bonfireboogie.com
         description: SSH and remote desktop gateway
         server: arc-docker
         container: termix
     - Forge Console:
         icon: linux.svg
-        href: https://termix.arc.home.arpa
+        href: https://termix.arc.bonfireboogie.com
         description: Forge desktop through Termix RDP after provisioning
 
 - Network & Cloud:

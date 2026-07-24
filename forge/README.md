@@ -45,15 +45,23 @@ Host forge
   IdentitiesOnly yes
 ```
 
-After provisioning, SSH is key-only, root login is disabled, and UFW accepts
-port 22 only from `192.168.50.0/24`. Arc's routed Tailscale traffic arrives
-from the home subnet, so the same rule covers remote access through the
+Ubuntu's normal password and public-key SSH authentication remain available;
+the optional key-only hardening workflow was deliberately removed. UFW accepts
+SSH and RDP only from `192.168.50.0/24`. Arc's routed Tailscale traffic arrives
+from the home subnet, so the same rules cover remote access through the
 existing subnet router.
 
+The 8 GiB memory value is the normal balloon target, not a proactive
+load-based autoscaler. VirtIO `autodeflate` is enabled so QEMU can return
+memory up to the 48 GiB maximum at the last moment before the guest OOM killer
+terminates a process. Sustained known-heavy workloads should still have their
+target raised deliberately through Unraid or `virsh setmem`; autodeflate is an
+emergency safety net rather than capacity planning.
+
 `codex`, `claude`, and `hermes` are locked service identities. They share only
-the `agent-workspace` group and are deliberately absent from `sudo`, `docker`,
-and `sshlogin`. Docker group membership is root-equivalent and must not be
-granted casually.
+the `agent-workspace` group and are deliberately absent from `sudo` and
+`docker`. Docker group membership is root-equivalent and must not be granted
+casually.
 
 The `codex` identity has two narrowly scoped integrations:
 
@@ -67,12 +75,13 @@ Generate the replacement Forge GitHub key only after installation. The legacy
 VM's key and fingerprint are not identities of the replacement guest.
 
 Komodo Periphery `2.2.0` runs as a root systemd service in outbound mode to
-`https://komodo.arc.home.arpa`. It opens no inbound port, trusts only Caddy's
-public root CA, and has both general and container terminal APIs disabled.
+`https://komodo.arc.bonfireboogie.com`. It opens no inbound port, uses a
+publicly trusted certificate, and has both general and container terminal APIs
+disabled.
 Komodo stack deployment remains root-equivalent even with those terminal APIs
 disabled.
 
-The Komodo secret, SSH private keys, installer password, Caddy private CA key,
+The Komodo secret, SSH private keys, installer password, Porkbun credentials,
 and agent-service credentials must never be committed here.
 
 ## Workspace layout
@@ -102,19 +111,16 @@ edit and build collisions.
 
 ## Rebuild artifacts
 
-- `Forge.xml` is the secret-free replacement definition. During installation
-  it includes the Kubuntu ISO and stock Unraid VNC, but no workspace disk,
-  passthrough device, or VNC secret. After installation, remove the ISO and
-  attach the separately prepared workspace disk.
+- `Forge.xml` is the secret-free replacement definition. It includes stock
+  Unraid VNC and the separately prepared workspace disk, but no passthrough
+  device or VNC secret. Remove the installer ISO after provisioning.
 - `legacy/Forge-Legacy.xml` is the headless rollback definition. It uses a
   noncanonical MAC and cannot collide with Forge's reserved DHCP identity.
 - `bootstrap.sh` installs the guest baseline and safely initializes an empty
-  512 GiB `/dev/vdb` as `/workspace`. It requires an external public key file;
+  256 GiB `/dev/vdb` as `/workspace`. It requires an external public key file;
   no key is embedded.
 - `stabilize.sh` applies the mandatory Kubuntu 26.04 shadow-stack/fwupd and
   Q35 iTCO containment before the rest of bootstrap work.
-- `harden-ssh.sh` disables password login only after a second key-based session
-  has been tested.
 - `unraid-readonly-wrapper.sh` is installed on Arc at the same path as this
   repository copy and is the allowlist behind the Forge-to-Unraid SSH key.
 - `stacks/forge-observability` contains the outbound Beszel agent, a
@@ -146,14 +152,13 @@ Then run:
 ```bash
 sudo ADMIN_PUBKEY_FILE=/tmp/forge-admin.pub ./bootstrap.sh
 
-# From another terminal, prove key login works before continuing.
+# From another terminal, verify key login remains available.
 ssh -i ~/.ssh/forge_ed25519 luqmaan@forge.local
 
-sudo CONFIRM_KEY_LOGIN=yes ./harden-ssh.sh
 sudo reboot
 ```
 
-Before running `bootstrap.sh`, confirm `/dev/vdb` is the new empty 512 GiB
+Before running `bootstrap.sh`, confirm `/dev/vdb` is the new empty 256 GiB
 workspace disk. The script refuses to format a disk with an unexpected size,
 partition table, or filesystem signature.
 
@@ -162,21 +167,19 @@ partition table, or filesystem signature.
 The guest bootstrap intentionally does not embed infrastructure credentials.
 Rebuilds therefore finish with these explicit steps:
 
-1. Copy only Caddy's public root certificate into Forge's system trust store.
-   Never copy Caddy's private CA key.
-2. Install the pinned Periphery version, configure outbound access to
-   `https://komodo.arc.home.arpa`, and keep general/container terminal APIs
+1. Install the pinned Periphery version, configure outbound access to
+   `https://komodo.arc.bonfireboogie.com`, and keep general/container terminal APIs
    disabled. Register Forge and its Files-on-host observability stack in
    Komodo only after TLS validation succeeds.
-3. Install `stacks/forge-observability/enroll-beszel.py` as root at
+2. Install `stacks/forge-observability/enroll-beszel.py` as root at
    `/usr/local/sbin/enroll-forge-beszel`, and install its Compose file under
    `/etc/komodo/stacks/forge-observability`. Run enrollment only through its
    hidden prompts.
-4. Generate Forge's GitHub Ed25519 key locally as `luqmaan`; add only its
+3. Generate Forge's GitHub Ed25519 key locally as `luqmaan`; add only its
    public half to GitHub and pin GitHub's published host key.
-5. Recreate the narrowly scoped Forge-to-Arc diagnostic key and Komodo CLI
+4. Recreate the narrowly scoped Forge-to-Arc diagnostic key and Komodo CLI
    profile without placing either secret in this repository.
-6. Configure RDP for the `luqmaan` desktop and add the connection in Termix.
+5. Configure RDP for the `luqmaan` desktop and add the connection in Termix.
    Keep stock Unraid VNC as installation/break-glass access until RDP has been
    tested end to end.
 
@@ -242,8 +245,9 @@ The required containment is deliberate:
   into the initramfs;
 - set Q35 `ICH9-LPC.noreboot=on` and the implicit iTCO action to `none`;
 - retain Kubuntu's supported Wayland default with 2D VirtIO, disable
-  sleep/hibernate, and retain ACPI poweroff handling for clean Unraid
-  shutdowns.
+  sleep/hibernate, and let logind handle the ACPI power key even when KDE's
+  PowerDevil holds its normal desktop inhibitor, so Unraid can shut Forge down
+  cleanly.
 
 Tradeoffs: Forge gives up the user-space CET shadow-stack mitigation, guest
 firmware updates, and the Q35 internal watchdog. Re-enable none of them until
@@ -271,8 +275,8 @@ changing the validated VirtIO VM definition.
 The QEMU guest agent is an administrative host-to-guest channel. Do not expose
 its socket or libvirt control to agent identities.
 
-`forge.arc.home.arpa` is reserved in Caddy and currently returns an intentional
+`forge.arc.bonfireboogie.com` is reserved in Caddy and currently returns an intentional
 `503` placeholder because Forge has no web application to proxy yet. Keep
-`forge.arc.home.arpa` pointed at Caddy (`192.168.50.52`), not directly at the
+`forge.arc.bonfireboogie.com` pointed at Caddy (`192.168.50.52`), not directly at the
 VM. When a Forge web service exists, replace the placeholder with a direct
 proxy to the DHCP-reserved Forge address and port.

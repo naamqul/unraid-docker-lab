@@ -40,7 +40,7 @@ services:
       socket-proxy:
         condition: service_started
     environment:
-      HUB_URL: https://beszel.arc.home.arpa
+      HUB_URL: https://beszel.arc.bonfireboogie.com
       DISABLE_SSH: "true"
       DOCKER_HOST: unix:///beszel-docker-api/docker.sock
       KEY_FILE: /run/secrets/beszel-key

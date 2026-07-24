@@ -46,6 +46,7 @@ cat >/etc/systemd/logind.conf.d/99-forge-always-on.conf <<'EOF'
 [Login]
 HandlePowerKey=poweroff
 HandlePowerKeyLongPress=poweroff
+PowerKeyIgnoreInhibited=yes
 HandleRebootKey=ignore
 HandleRebootKeyLongPress=ignore
 HandleSuspendKey=ignore

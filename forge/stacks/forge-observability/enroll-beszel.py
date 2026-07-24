@@ -13,7 +13,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-BASE = "https://beszel.arc.home.arpa"
+BASE = "https://beszel.arc.bonfireboogie.com"
 NAME = "Forge"
 HOST = "192.168.50.179"
 PORT = "45876"

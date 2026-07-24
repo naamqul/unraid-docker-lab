@@ -50,8 +50,12 @@ or other application using the libvirt API.
       <boot order='1'/>
       <address type='pci' domain='0x0000' bus='0x03' slot='0x00' function='0x0'/>
     </disk>
-    <!-- Keep the workspace disk detached during the interactive installer.
-         It is created and attached only after the OS disk is validated. -->
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw' cache='writeback' discard='unmap'/>
+      <source file='/mnt/user/domains/Forge/workspace.img'/>
+      <target dev='vdb' bus='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x04' slot='0x00' function='0x0'/>
+    </disk>
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
       <source file='/mnt/user/isos/kubuntu-26.04-desktop-amd64.iso'/>
@@ -155,7 +159,8 @@ or other application using the libvirt API.
     </video>
     <!-- Keep Q35's implicit watchdog inert. -->
     <watchdog model='itco' action='none'/>
-    <memballoon model='virtio'>
+    <memballoon model='virtio' autodeflate='on'>
+      <stats period='10'/>
       <address type='pci' domain='0x0000' bus='0x06' slot='0x00' function='0x0'/>
     </memballoon>
     <rng model='virtio'>

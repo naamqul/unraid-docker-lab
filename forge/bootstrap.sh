@@ -7,7 +7,7 @@ set -Eeuo pipefail
 : "${LAN_CIDR:=192.168.50.0/24}"
 : "${WORKSPACE_DEVICE:=/dev/vdb}"
 : "${WORKSPACE_PARTITION:=/dev/vdb1}"
-: "${WORKSPACE_BYTES:=549755813888}"
+: "${WORKSPACE_BYTES:=274877906944}"
 : "${SWAPFILE:=/swapfile}"
 : "${SWAP_BYTES:=17179869184}"
 
@@ -50,6 +50,7 @@ apt-get install -y \
   qemu-guest-agent spice-vdagent \
   xserver-xorg-core xserver-xorg-input-libinput xcvt \
   plasma-session-x11 kwin-x11 \
+  xrdp xorgxrdp dbus-x11 \
   openssh-server unattended-upgrades ufw \
   ca-certificates curl wget gnupg \
   git git-lfs gh \
@@ -83,9 +84,8 @@ if [[ ! -e /usr/local/bin/fd && -x /usr/bin/fdfind ]]; then
   ln -s /usr/bin/fdfind /usr/local/bin/fd
 fi
 
-getent group sshlogin >/dev/null || groupadd --system sshlogin
 getent group agent-workspace >/dev/null || groupadd --system agent-workspace
-usermod -aG sudo,sshlogin,agent-workspace "${ADMIN_USER}"
+usermod -aG sudo,agent-workspace "${ADMIN_USER}"
 
 for user in codex claude hermes; do
   if ! id "${user}" >/dev/null 2>&1; then
@@ -98,7 +98,7 @@ for user in codex claude hermes; do
   usermod -L "${user}"
   chmod 0700 "$(getent passwd "${user}" | cut -d: -f6)"
 
-  for forbidden_group in sudo docker sshlogin; do
+  for forbidden_group in sudo docker; do
     if id -nG "${user}" | tr ' ' '\n' | grep -qx "${forbidden_group}"; then
       gpasswd -d "${user}" "${forbidden_group}"
     fi
@@ -124,19 +124,31 @@ grep -qxF -- "${ADMIN_PUBKEY}" "${AUTHORIZED_KEYS}" ||
 chown "${ADMIN_USER}:${ADMIN_GROUP}" "${AUTHORIZED_KEYS}"
 chmod 0600 "${AUTHORIZED_KEYS}"
 
-# Create the dedicated workspace filesystem only when vdb is exactly the new,
-# empty 512 GiB virtual disk prepared for Forge.
+if [[ ! -e "${ADMIN_HOME}/.xsession" ]]; then
+  printf '%s\n' 'exec dbus-run-session startplasma-x11' \
+    >"${ADMIN_HOME}/.xsession"
+  chown "${ADMIN_USER}:${ADMIN_GROUP}" "${ADMIN_HOME}/.xsession"
+  chmod 0600 "${ADMIN_HOME}/.xsession"
+fi
+
+adduser xrdp ssl-cert
+systemctl enable xrdp.service
+systemctl restart xrdp.service
+
+# Always prove that vdb is the dedicated 256 GiB workspace device. On the first
+# run, initialize only a completely blank disk; on reruns, accept only the
+# exact ext4 filesystem this script creates.
+[[ -b "${WORKSPACE_DEVICE}" ]] || {
+  echo "Workspace device ${WORKSPACE_DEVICE} is missing."
+  exit 1
+}
+
+[[ "$(blockdev --getsize64 "${WORKSPACE_DEVICE}")" == "${WORKSPACE_BYTES}" ]] || {
+  echo "Refusing workspace setup: ${WORKSPACE_DEVICE} has an unexpected size."
+  exit 1
+}
+
 if [[ ! -b "${WORKSPACE_PARTITION}" ]]; then
-  [[ -b "${WORKSPACE_DEVICE}" ]] || {
-    echo "Workspace device ${WORKSPACE_DEVICE} is missing."
-    exit 1
-  }
-
-  [[ "$(blockdev --getsize64 "${WORKSPACE_DEVICE}")" == "${WORKSPACE_BYTES}" ]] || {
-    echo "Refusing to format ${WORKSPACE_DEVICE}: unexpected size."
-    exit 1
-  }
-
   [[ "$(lsblk -nrpo NAME "${WORKSPACE_DEVICE}" | wc -l)" -eq 1 ]] || {
     echo "Refusing to format ${WORKSPACE_DEVICE}: partitions already exist."
     exit 1
@@ -154,15 +166,57 @@ if [[ ! -b "${WORKSPACE_PARTITION}" ]]; then
   mkfs.ext4 -L forge-workspace "${WORKSPACE_PARTITION}"
 fi
 
+mapfile -t WORKSPACE_NODES < <(lsblk -nrpo NAME "${WORKSPACE_DEVICE}")
+[[ "${#WORKSPACE_NODES[@]}" -eq 2 &&
+   "${WORKSPACE_NODES[0]}" == "${WORKSPACE_DEVICE}" &&
+   "${WORKSPACE_NODES[1]}" == "${WORKSPACE_PARTITION}" ]] || {
+  echo "Refusing workspace setup: unexpected partition layout."
+  exit 1
+}
+
+[[ "$(blkid -s TYPE -o value "${WORKSPACE_PARTITION}")" == "ext4" ]] || {
+  echo "Refusing workspace setup: ${WORKSPACE_PARTITION} is not ext4."
+  exit 1
+}
+[[ "$(blkid -s LABEL -o value "${WORKSPACE_PARTITION}")" == "forge-workspace" ]] || {
+  echo "Refusing workspace setup: filesystem label is not forge-workspace."
+  exit 1
+}
+
 WORKSPACE_UUID="$(blkid -s UUID -o value "${WORKSPACE_PARTITION}")"
+[[ -n "${WORKSPACE_UUID}" ]] || {
+  echo "Refusing workspace setup: filesystem UUID is missing."
+  exit 1
+}
+
 install -d -o root -g agent-workspace -m 2770 /workspace
 
-if ! grep -Eq "^[[:space:]]*UUID=${WORKSPACE_UUID}[[:space:]]+/workspace[[:space:]]" /etc/fstab; then
+mapfile -t WORKSPACE_FSTAB_SOURCES < <(
+  awk '$1 !~ /^#/ && $2 == "/workspace" { print $1 }' /etc/fstab
+)
+
+if [[ "${#WORKSPACE_FSTAB_SOURCES[@]}" -eq 0 ]]; then
   printf 'UUID=%s /workspace ext4 defaults,noatime 0 2\n' \
     "${WORKSPACE_UUID}" >>/etc/fstab
+elif [[ "${#WORKSPACE_FSTAB_SOURCES[@]}" -ne 1 ||
+        "${WORKSPACE_FSTAB_SOURCES[0]}" != "UUID=${WORKSPACE_UUID}" ]]; then
+  echo "Refusing workspace setup: conflicting /workspace fstab entry."
+  exit 1
 fi
 
 mountpoint -q /workspace || mount /workspace
+
+MOUNTED_SOURCE="$(findmnt -nro SOURCE --target /workspace)"
+[[ "$(readlink -f "${MOUNTED_SOURCE}")" ==
+   "$(readlink -f "${WORKSPACE_PARTITION}")" ]] || {
+  echo "Refusing workspace setup: /workspace is mounted from the wrong device."
+  exit 1
+}
+[[ "$(findmnt -nro FSTYPE --target /workspace)" == "ext4" ]] || {
+  echo "Refusing workspace setup: /workspace is not mounted as ext4."
+  exit 1
+}
+
 chown root:agent-workspace /workspace
 chmod 2770 /workspace
 
@@ -190,6 +244,8 @@ ufw default deny incoming
 ufw default allow outgoing
 ufw allow from "${LAN_CIDR}" to any port 22 proto tcp \
   comment "Forge SSH from home LAN"
+ufw allow from "${LAN_CIDR}" to any port 3389 proto tcp \
+  comment "Forge RDP from home LAN and Arc Termix"
 ufw --force enable
 
 for package in \
@@ -264,5 +320,5 @@ sysctl --system >/dev/null
 
 echo
 echo "Forge base bootstrap complete."
-echo "Test SSH key login before applying the separate hardening stage."
+echo "Ubuntu's default password and public-key SSH authentication remain enabled."
 [[ -e /var/run/reboot-required ]] && echo "A reboot is required."

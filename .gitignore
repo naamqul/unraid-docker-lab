@@ -37,6 +37,11 @@ komodo/keys/
 *.backup
 *.swp
 *~
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Tool and operating-system metadata
 .cache/

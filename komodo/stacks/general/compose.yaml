@@ -57,7 +57,7 @@ services:
         restart: true
     network_mode: service:general-gluetun
     environment:
-      SEARXNG_BASE_URL: https://searxng.arc.home.arpa/
+      SEARXNG_BASE_URL: https://searxng.arc.bonfireboogie.com/
       SEARXNG_BIND_ADDRESS: 0.0.0.0
       SEARXNG_PORT: 8080
       SEARXNG_SECRET: ${SEARXNG_SECRET:?Set SEARXNG_SECRET in .env}
@@ -74,7 +74,7 @@ services:
     depends_on:
       - dockerproxy
     environment:
-      HOMEPAGE_ALLOWED_HOSTS: home.arc.home.arpa,homepage.arc.home.arpa
+      HOMEPAGE_ALLOWED_HOSTS: arc.bonfireboogie.com,home.arc.bonfireboogie.com,homepage.arc.bonfireboogie.com,home.arc.home.arpa,homepage.arc.home.arpa
       HOMEPAGE_VAR_BESZEL_USERNAME: ${HOMEPAGE_BESZEL_USERNAME:?Set HOMEPAGE_BESZEL_USERNAME in .env}
       HOMEPAGE_VAR_BESZEL_PASSWORD: ${HOMEPAGE_BESZEL_PASSWORD:?Set HOMEPAGE_BESZEL_PASSWORD in .env}
       LOG_TARGETS: stdout
@@ -107,7 +107,7 @@ services:
     image: henrygd/beszel:0.18.7
     restart: unless-stopped
     environment:
-      APP_URL: https://beszel.arc.home.arpa
+      APP_URL: https://beszel.arc.bonfireboogie.com
       CHECK_UPDATES: "true"
     ports:
       - 127.0.0.1:8090:8090

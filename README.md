@@ -65,7 +65,7 @@ Env:     /mnt/user/appdata/unraid-docker-lab/komodo/.env
 ```
 
 Start it once, verify `http://arc.local:9120`, and then enable autostart. After
-Caddy's internal CA is trusted, use `https://komodo.arc.home.arpa` instead.
+Caddy is online, use `https://komodo.arc.bonfireboogie.com` instead.
 Compose Manager Plus should continue owning the Komodo bootstrap stack;
 Komodo can manage the application stacks below `komodo/stacks/`.
 
@@ -85,7 +85,7 @@ Komodo can manage the application stacks below `komodo/stacks/`.
 
 The always-on Forge VM is documented under [`forge/`](forge/README.md).
 That directory contains its persistent libvirt definition, secret-free guest
-bootstrap and SSH-hardening scripts, and the allowlisted Forge-to-Unraid
+bootstrap scripts, and the allowlisted Forge-to-Unraid
 diagnostic wrapper. Forge has independent storage and identity from the
 existing graphics-development VM; the Panther Lake repository migration and
 backup policy are intentionally separate follow-up work.
@@ -108,29 +108,31 @@ the same `192.168.50.52` address used on the LAN. Linux clients must also run
 `tailscale set --accept-routes=true`; Windows, macOS, iOS, and Android accept
 subnet routes by default.
 
-The configured private names are:
+The primary, publicly trusted names are:
 
 | Name | Backend |
 | --- | --- |
-| `caddy.arc.home.arpa` | Caddy health response |
-| `komodo.arc.home.arpa` | `komodo:9120` |
-| `jellyfin.arc.home.arpa` | `jellyfin:8096` |
-| `unraid.arc.home.arpa` | Unraid host WebUI through the isolated bridge helper |
-| `home.arc.home.arpa` | `homepage:3000` |
-| `homepage.arc.home.arpa` | `homepage:3000` |
-| `beszel.arc.home.arpa` | `beszel:8090` |
-| `termix.arc.home.arpa` | `termix:8080` |
-| `jdownloader.arc.home.arpa` | `general-gluetun:5800` |
-| `filebrowser.arc.home.arpa` | `filebrowser:80` |
-| `searxng.arc.home.arpa` | `general-gluetun:8080` |
-| `open-webui.arc.home.arpa` | `gluetun:8080` |
-| `hermes.arc.home.arpa` | `gluetun:9119` |
-| `hermes-api.arc.home.arpa` | `gluetun:8642` |
-| `forge.arc.home.arpa` | Reserved Caddy `503` placeholder until Forge hosts a web service |
+| `arc.bonfireboogie.com` | `homepage:3000` |
+| `caddy.arc.bonfireboogie.com` | Caddy health response |
+| `komodo.arc.bonfireboogie.com` | `komodo:9120` |
+| `jellyfin.arc.bonfireboogie.com` | `jellyfin:8096` |
+| `unraid.arc.bonfireboogie.com` | Unraid host WebUI through the isolated bridge helper |
+| `home.arc.bonfireboogie.com` | `homepage:3000` |
+| `homepage.arc.bonfireboogie.com` | `homepage:3000` |
+| `beszel.arc.bonfireboogie.com` | `beszel:8090` |
+| `termix.arc.bonfireboogie.com` | `termix:8080` |
+| `jdownloader.arc.bonfireboogie.com` | `general-gluetun:5800` |
+| `filebrowser.arc.bonfireboogie.com` | `filebrowser:80` |
+| `searxng.arc.bonfireboogie.com` | `general-gluetun:8080` |
+| `open-webui.arc.bonfireboogie.com` | `gluetun:8080` |
+| `hermes.arc.bonfireboogie.com` | `gluetun:9119` |
+| `hermes-api.arc.bonfireboogie.com` | `gluetun:8642` |
+| `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 
-`home.arpa` is used deliberately. Do not use subdomains of `arc.local` here:
-`.local` is reserved for multicast DNS, and wildcard/unicast records beneath
-it are unreliable across operating systems and Tailscale.
+The prior `.arc.home.arpa` Caddy sites remain temporary aliases during the
+migration. Do not use subdomains of `arc.local`: `.local` is reserved for
+multicast DNS, and wildcard/unicast records beneath it are unreliable across
+operating systems and Tailscale.
 
 ### One-time setup
 
@@ -140,12 +142,20 @@ it are unreliable across operating systems and Tailscale.
    Separately reserve `192.168.50.179` for Forge's MAC
    `52:54:00:c7:1f:f3`; that lease is used for direct SSH and future Caddy
    upstreams.
-2. In NextDNS Rewrites (or another DNS server used by both LAN and Tailscale
-   clients), point `arc.home.arpa` to `192.168.50.52`. NextDNS applies that
-   rewrite to the base name and all subdomains, including future apps.
-   Add the more-specific exception `router.arc.home.arpa` →
-   `192.168.50.1`; the router uses plain HTTP directly and intentionally
-   bypasses Caddy.
+2. In Porkbun authoritative DNS, keep DNSSEC enabled and publish:
+
+   ```text
+   arc.bonfireboogie.com    A  192.168.50.52
+   *.arc.bonfireboogie.com  A  192.168.50.52
+   ```
+
+   Publishing an RFC1918 address reveals the internal Caddy address but does
+   not expose a port or service. It preserves signed DNS answers and makes the
+   same names work with arbitrary client DNS/DoH providers. Remove any
+   NextDNS rewrite for `arc.bonfireboogie.com`; a synthesized unsigned answer
+   conflicts with strict validation on the ASUS resolver. Keep the existing
+   `router.arc.home.arpa` rewrite to `192.168.50.1`; the router uses plain HTTP
+   directly and intentionally bypasses Caddy.
 3. In the Tailscale admin console, open Arc's route settings and approve
    `192.168.50.0/24`. Advertising a route on Arc does not activate it until it
    is approved, unless an `autoApprovers` policy already covers it.
@@ -177,8 +187,9 @@ it are unreliable across operating systems and Tailscale.
    Compose file:        compose.yaml
    ```
 
-   In the Stack's Environment field, copy the three values from
-   `caddy/.env.example`. Komodo writes that field to `.env` and passes it to
+   In the Stack's Environment field, copy the non-secret settings from
+   `caddy/.env.example` and supply the two Porkbun API credentials in the
+   ignored `.env`. Komodo writes that field to `.env` and passes it to
    Compose. The project name must remain `caddy` so Komodo imports the running
    project instead of creating a second one. Do not also register Caddy in
    Compose Manager Plus; one stack should have exactly one ongoing owner.
@@ -190,16 +201,19 @@ it are unreliable across operating systems and Tailscale.
    ```bash
    docker exec caddy caddy validate --config /etc/caddy/Caddyfile
    curl http://192.168.50.52
-   curl -k --resolve komodo.arc.home.arpa:443:192.168.50.52 \
-     https://komodo.arc.home.arpa
+   curl --resolve komodo.arc.bonfireboogie.com:443:192.168.50.52 \
+     https://komodo.arc.bonfireboogie.com
    ```
 
-The Caddyfile uses Caddy's internal CA because `home.arpa` cannot receive
-publicly trusted certificates. Install the public root certificate from
-`/mnt/user/appdata/caddy-state/data/caddy/pki/authorities/local/root.crt` in
-each client trust store. Never distribute the adjacent private key. Caddy's
-persisted `/data` directory must be backed up; losing it creates a new CA that
-clients will not yet trust.
+The custom image pins Caddy `2.11.4` plus `caddy-dns/porkbun` `v0.3.1`.
+Porkbun DNS-01 challenges issue a publicly trusted base certificate and
+wildcard certificate without opening WAN ports. New clients need no private
+CA installation. The old `.arc.home.arpa` aliases still use Caddy's internal
+CA during migration. Caddy's persisted `/data` contains the internal CA key,
+ACME account data, and issued private keys; `/mnt/user/appdata/caddy-state`
+must therefore be backed up only as sensitive encrypted data. Never distribute
+its private keys. The ignored Caddy `.env` contains the Porkbun API
+credentials and has the same encrypted-backup requirement.
 
 ### Add another proxied application manually
 
@@ -221,18 +235,20 @@ For an ordinary container:
        external: true
    ```
 
-2. Add a site to `komodo/stacks/caddy/Caddyfile` using the Compose service
-   name and the container's internal port:
+2. Add a named host matcher and handler inside the
+   `*.arc.bonfireboogie.com` site in `komodo/stacks/caddy/Caddyfile`, using the
+   Compose service name and the container's internal port:
 
    ```caddyfile
-   example.arc.home.arpa {
-       tls internal
+   @example host example.arc.bonfireboogie.com
+   handle @example {
        reverse_proxy example:8080
    }
    ```
 
-3. The existing `arc.home.arpa` wildcard rewrite already covers the new name;
-   do not add a redundant per-application rewrite.
+3. The authoritative `*.arc.bonfireboogie.com` A record and wildcard
+   certificate already cover the new name; do not add a per-application DNS
+   record or TLS directive.
 4. Redeploy the application, validate the Caddyfile, and gracefully reload it:
 
    ```bash
@@ -349,7 +365,7 @@ The Hub starts immediately, while its local agent is intentionally behind the
 `beszel-agent` Compose profile because the Hub generates the required key and
 token during enrollment:
 
-1. Open `https://beszel.arc.home.arpa` and create the first account.
+1. Open `https://beszel.arc.bonfireboogie.com` and create the first account.
 2. Add a system named `Arc` using the Unix socket
    `/beszel_socket/beszel.sock`. Use that system's individual enrollment
    instructions rather than a universal token.
@@ -376,13 +392,13 @@ sudo /usr/local/sbin/enroll-forge-beszel
 Enter the existing Beszel login only at the hidden prompts, then deploy the
 already-registered `forge-observability` stack from Komodo. No port is opened
 in Forge's firewall: the agent initiates its authenticated WebSocket to
-`https://beszel.arc.home.arpa`. The agent mounts Forge's public system CA
-bundle read-only so it can validate Caddy's private CA; no Caddy private key is
-present in the container.
+`https://beszel.arc.bonfireboogie.com`. The agent mounts Forge's public system
+CA bundle read-only and validates Caddy's publicly trusted certificate; no
+Caddy private key is present in the container.
 
 ### Termix and the Forge console
 
-Termix is available at `https://termix.arc.home.arpa`. It publishes no host
+Termix is available at `https://termix.arc.bonfireboogie.com`. It publishes no host
 port. Termix reaches `termix-guacd` only across the internal `termix-private`
 control bridge; guacd has a separate unprivileged egress bridge for outbound
 remote-desktop connections. Neither service publishes guacd to the LAN.
@@ -407,7 +423,9 @@ reuses the Windows administrative key or Forge's GitHub key. Their authorized
 key entries disable agent forwarding, port forwarding, X11 forwarding, and
 user RC files while preserving the PTY, SFTP, and command execution required
 by Termix. The Arc entry remains root-equivalent, including its Docker view.
-The Forge entry has terminal, file-manager, Docker, and system-stat access.
+The Forge entry has terminal, file-manager, and system-stat access; Docker
+administration requires `sudo` because `luqmaan` is intentionally not a member
+of the root-equivalent `docker` group.
 Verify each server's host-key fingerprint when Termix first presents it.
 
 Termix stores private SSH keys and remote-desktop credentials in its encrypted
@@ -427,7 +445,7 @@ Back up all of `/mnt/user/appdata/termix-state` as encrypted data. Its hidden
 `.env` contains the generated encryption keys required to restore and decrypt
 the Termix database.
 
-Homepage is available at `https://home.arc.home.arpa`. Its hand-authored
+Homepage is available at `https://arc.bonfireboogie.com`. Its hand-authored
 dashboard files live under `general/homepage`. It reads container status
 through `homepage-dockerproxy`, which permits Docker GET operations for
 container metadata while explicitly rejecting POST requests. The proxy shares
@@ -450,7 +468,7 @@ plugins, logs, and cache are deliberately outside the Git repository:
 
 The media share `/mnt/user/booty` is mounted read-only at `/media`. Port 8096
 remains published as a direct recovery path, while normal browser access uses
-`https://jellyfin.arc.home.arpa` through Caddy. UDP 7359 remains published for
+`https://jellyfin.arc.bonfireboogie.com` through Caddy. UDP 7359 remains published for
 LAN client discovery. DLNA is not enabled by this bridge-network setup because
 it requires host networking; prefer native Jellyfin apps or add DLNA later as
 a deliberate tradeoff.

@@ -19,7 +19,7 @@
 
 - search:
     provider: custom
-    url: https://searxng.arc.home.arpa/search?q=
+    url: https://searxng.arc.bonfireboogie.com/search?q=
     focus: false
     showSearchSuggestions: false
     target: _blank
