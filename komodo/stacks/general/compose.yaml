@@ -232,6 +232,9 @@ services:
     networks:
       termix-private:
         ipv4_address: 172.23.0.11
+      # Guacd needs outbound reachability to Forge's LAN address for RDP, but
+      # its control port remains reachable only through termix-private.
+      termix-egress:
 
 networks:
   caddy-backend:
@@ -243,6 +246,9 @@ networks:
   termix-private:
     name: termix-private
     external: true
+  termix-egress:
+    name: termix-egress
+    driver: bridge
 
 volumes:
   beszel-docker-api:

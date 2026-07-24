@@ -102,7 +102,7 @@
     - Forge Console:
         icon: linux.svg
         href: https://termix.arc.home.arpa
-        description: Forge VNC console through isolated guacd
+        description: Forge desktop through Termix RDP after provisioning
 
 - Network & Cloud:
     - ASUS Router:

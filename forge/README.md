@@ -10,15 +10,15 @@ projects.
 
 | Setting | Value |
 | --- | --- |
-| Guest | Kubuntu 26.04 / Ubuntu 26.04 LTS base (installation pending) |
+| Guest | Kubuntu 26.04 / Ubuntu 26.04 LTS base (initial provisioning) |
 | UUID | `1528c7a1-af0a-2d8c-11eb-6c9e2a0faeb0` |
 | MAC | `52:54:00:c7:1f:f3` |
 | Reserved DHCP address | `192.168.50.179` |
-| Compute | 12 vCPU, 24 GiB RAM |
+| Compute | 12 vCPU, 8 GiB current / 48 GiB maximum ballooned RAM |
 | OS disk | `/mnt/user/domains/Forge/vdisk1.img`, 256 GiB sparse raw |
 | Workspace disk | Created and attached after OS installation |
 | Workspace mount | `/workspace`, ext4, `noatime` (post-bootstrap) |
-| Console | 2D VirtIO plus private Termix/guacd VNC; no GPU passthrough |
+| Console | 2D VirtIO plus stock Unraid VNC; Termix RDP after provisioning |
 | Startup | Disabled until the replacement passes validation |
 
 The ASUS DHCP reservation binds `192.168.50.179` to
@@ -26,8 +26,8 @@ The ASUS DHCP reservation binds `192.168.50.179` to
 `forge.local` remains a convenience name supplied by router DNS.
 
 `Forge-Legacy` retains the previous disks and NVRAM as rollback, but is
-headless, non-autostarting, and uses MAC `52:54:00:91:8f:2b`. Never start both
-guests with the canonical Forge MAC or VNC port.
+headless, non-autostarting, and uses MAC `52:54:00:91:8f:2b`. Never assign it
+Forge's canonical MAC while both definitions exist.
 
 Forge does not run its own Tailscale node. Arc is already online as a Tailscale
 subnet router for `192.168.50.0/24`, so remote tailnet clients can reach Forge
@@ -103,20 +103,16 @@ edit and build collisions.
 ## Rebuild artifacts
 
 - `Forge.xml` is the secret-free replacement definition. During installation
-  it includes the Kubuntu ISO but no workspace disk, passthrough device, or
-  live VNC secret. After installation, remove the ISO and attach the separately
-  prepared workspace disk.
+  it includes the Kubuntu ISO and stock Unraid VNC, but no workspace disk,
+  passthrough device, or VNC secret. After installation, remove the ISO and
+  attach the separately prepared workspace disk.
 - `legacy/Forge-Legacy.xml` is the headless rollback definition. It uses a
-  noncanonical MAC and cannot collide with Forge's private VNC listener.
+  noncanonical MAC and cannot collide with Forge's reserved DHCP identity.
 - `bootstrap.sh` installs the guest baseline and safely initializes an empty
   512 GiB `/dev/vdb` as `/workspace`. It requires an external public key file;
   no key is embedded.
 - `stabilize.sh` applies the mandatory Kubuntu 26.04 shadow-stack/fwupd and
   Q35 iTCO containment before the rest of bootstrap work.
-- `configure-vnc.sh` creates/verifies the internal Docker bridge, injects the
-  root-only VNC password into temporary runtime XML, defines the persistent
-  domain, and removes the temporary file. It refuses to run while Forge is
-  active.
 - `harden-ssh.sh` disables password login only after a second key-based session
   has been tested.
 - `unraid-readonly-wrapper.sh` is installed on Arc at the same path as this
@@ -127,9 +123,9 @@ edit and build collisions.
 
 Kubuntu's desktop ISO uses Calamares and does not support Ubuntu Server's
 Subiquity autoinstall format. Rebuilding therefore has one interactive install
-stage followed by the scripted baseline. Start the VM from Unraid, then open
-the existing **Forge Desktop (Kubuntu)** connection in Termix; it now reaches
-the replacement VM through the private VNC listener.
+stage followed by the scripted baseline. Start the VM from Unraid and use the
+stock Unraid VNC console for installation and break-glass recovery. Termix uses
+RDP only after the installed guest has been provisioned for it.
 
 At the ISO boot menu, edit the `Try or Install Kubuntu` entry and append
 `nousershstk` to the Linux kernel line before booting it. Use:
@@ -166,28 +162,23 @@ partition table, or filesystem signature.
 The guest bootstrap intentionally does not embed infrastructure credentials.
 Rebuilds therefore finish with these explicit steps:
 
-1. On Arc, fully shut Forge down and run
-   `/mnt/user/appdata/unraid-docker-lab/forge/configure-vnc.sh`; then start
-   Forge again. Do not define the tracked XML directly if a console is wanted.
-2. Copy only Caddy's public root certificate into Forge's system trust store.
+1. Copy only Caddy's public root certificate into Forge's system trust store.
    Never copy Caddy's private CA key.
-3. Install the pinned Periphery version, configure outbound access to
+2. Install the pinned Periphery version, configure outbound access to
    `https://komodo.arc.home.arpa`, and keep general/container terminal APIs
    disabled. Register Forge and its Files-on-host observability stack in
    Komodo only after TLS validation succeeds.
-4. Install `stacks/forge-observability/enroll-beszel.py` as root at
+3. Install `stacks/forge-observability/enroll-beszel.py` as root at
    `/usr/local/sbin/enroll-forge-beszel`, and install its Compose file under
    `/etc/komodo/stacks/forge-observability`. Run enrollment only through its
    hidden prompts.
-5. Generate Forge's GitHub Ed25519 key locally as `luqmaan`; add only its
+4. Generate Forge's GitHub Ed25519 key locally as `luqmaan`; add only its
    public half to GitHub and pin GitHub's published host key.
-6. Recreate the narrowly scoped Forge-to-Arc diagnostic key and Komodo CLI
+5. Recreate the narrowly scoped Forge-to-Arc diagnostic key and Komodo CLI
    profile without placing either secret in this repository.
-
-After any Unraid reboot, verify that the external `termix-private` Docker
-network exists before Forge autostarts. Preserve user-defined Docker networks.
-The cold-boot ordering is not yet qualified; if Forge fails to start, recreate
-the network, leave Forge shut off, rerun `configure-vnc.sh`, and start it.
+6. Configure RDP for the `luqmaan` desktop and add the connection in Termix.
+   Keep stock Unraid VNC as installation/break-glass access until RDP has been
+   tested end to end.
 
 ## Operational checks
 
@@ -227,12 +218,20 @@ The expected results are: core runtime services active, all three fwupd units
 
 ## Platform containment
 
-Forge reproduced the Panther Lake repository's F10 failure even without iGPU
-passthrough. An `fwupd-refresh` activation was followed within two seconds by
-unrelated processes faulting at the same address with page-fault error
-`0x44/0x46`; Linux continued answering ICMP while SSH, QGA, D-Bus, and the
-desktop died. This is the documented KVM/CET user-shadow-stack collapse, not a
-QXL or VFIO failure.
+Forge previously reproduced the Panther Lake repository's F10 failure even
+without iGPU passthrough. An `fwupd-refresh` activation was followed within two
+seconds by unrelated processes faulting at the same address with page-fault
+error `0x44/0x46`; Linux continued answering ICMP while SSH, QGA, D-Bus, and
+the desktop died. That incident is the documented KVM/CET user-shadow-stack
+collapse, not a VFIO failure.
+
+The separate freeze on 2026-07-23 had a different signature: `fwupd` never
+activated, one guest vCPU remained pinned at a fixed kernel instruction, and
+the recovered journal contained repeated QXL/Mesa display errors. No kernel
+trace identified the initiating driver, so QXL cannot be proven as the cause,
+but the display path was the strongest correlate. Forge was recovered by
+switching QXL to plain 2D VirtIO; two clean boots and a soak beyond the original
+failure window passed.
 
 The required containment is deliberate:
 
@@ -242,31 +241,32 @@ The required containment is deliberate:
 - hard-block `iTCO_wdt` with `install iTCO_wdt /bin/false` and carry it
   into the initramfs;
 - set Q35 `ICH9-LPC.noreboot=on` and the implicit iTCO action to `none`;
-- use SDDM's X11 greeter for QXL, disable sleep/hibernate, and retain ACPI
-  poweroff handling for clean Unraid shutdowns.
+- retain Kubuntu's supported Wayland default with 2D VirtIO, disable
+  sleep/hibernate, and retain ACPI poweroff handling for clean Unraid
+  shutdowns.
 
 Tradeoffs: Forge gives up the user-space CET shadow-stack mitigation, guest
 firmware updates, and the Q35 internal watchdog. Re-enable none of them until
 the corresponding platform failure is independently fixed and requalified.
 
-Forge's VNC endpoint is fixed at `172.23.0.1:5909`, password protected, and
-bound only to Docker's internal `termix-private` bridge. The tracked XML omits
-the entire VNC device so a raw definition fails closed; Arc injects the device
-and secret from
-`/boot/config/secrets/forge-vnc-password` into root-only runtime libvirt XML.
-The `termix-private` network must exist before Forge starts.
+Forge uses Unraid's stock auto-assigned VNC console. The tracked XML contains
+no secret; set a VNC password through Unraid/libvirt at runtime if the console
+must remain available. Until then, treat the raw VNC listener as trusted-LAN
+only: never port-forward it or expose it to an untrusted network. Once RDP is
+working through Termix, VNC can be disabled except when break-glass access is
+needed.
 
-The bootstrap explicitly installs Xorg core, the QXL display driver, libinput,
-and `xcvt` before relying on SDDM's forced-X11 greeter. A VNC connection that
-authenticates but shows a black framebuffer should first be checked with:
+The bootstrap installs the Xorg core and input packages as a fallback while
+leaving Kubuntu's supported Wayland greeter/session default intact. If Unraid
+VNC shows a black framebuffer, first check:
 
 ```bash
 systemctl status sddm
 pgrep -a 'Xorg|sddm-greeter'
 ```
 
-If SDDM reports that `/usr/bin/X` cannot start, repair those four packages
-rather than changing the validated QXL VM definition.
+Inspect `journalctl -b` for display-manager, VirtIO DRM, or Mesa errors before
+changing the validated VirtIO VM definition.
 
 The QEMU guest agent is an administrative host-to-guest channel. Do not expose
 its socket or libvirt control to agent identities.

@@ -149,7 +149,7 @@ it are unreliable across operating systems and Tailscale.
 3. In the Tailscale admin console, open Arc's route settings and approve
    `192.168.50.0/24`. Advertising a route on Arc does not activate it until it
    is approved, unless an `autoApprovers` policy already covers it.
-4. Create the shared backend and isolated Termix networks once:
+4. Create the shared backend and isolated Termix control network once:
 
    ```bash
    docker network create caddy-backend
@@ -383,8 +383,13 @@ present in the container.
 ### Termix and the Forge console
 
 Termix is available at `https://termix.arc.home.arpa`. It publishes no host
-port. `termix-guacd` is attached only to the internal `termix-private` bridge,
-and Forge VNC listens only on that bridge at `172.23.0.1:5909`.
+port. Termix reaches `termix-guacd` only across the internal `termix-private`
+control bridge; guacd has a separate unprivileged egress bridge for outbound
+remote-desktop connections. Neither service publishes guacd to the LAN.
+
+Forge installation and break-glass access use the stock Unraid VNC console,
+not Termix. After the guest is provisioned, Termix should use RDP directly to
+Forge's reserved address.
 
 The first administrator and a passkey are enrolled. Registration is disabled
 both in Termix's persisted settings and with
@@ -395,7 +400,7 @@ not configured. The managed connections are:
 | --- | --- | --- | --- |
 | `Arc / Unraid` | SSH | `192.168.50.51:22` | `root` |
 | `Forge` | SSH | `192.168.50.179:22` | `luqmaan` |
-| `Forge Desktop (Kubuntu)` | VNC | `172.23.0.1:5909` | password only |
+| `Forge Desktop (Kubuntu)` | RDP | `192.168.50.179:3389` | `luqmaan` |
 
 Arc and Forge use separate Termix-generated Ed25519 credentials; neither
 reuses the Windows administrative key or Forge's GitHub key. Their authorized
@@ -405,14 +410,15 @@ by Termix. The Arc entry remains root-equivalent, including its Docker view.
 The Forge entry has terminal, file-manager, Docker, and system-stat access.
 Verify each server's host-key fingerprint when Termix first presents it.
 
-Termix stores the private SSH keys and VNC password in its encrypted database.
-The one-time API key used for provisioning was revoked and its handoff file
-deleted immediately after end-to-end SSH authentication tests passed. Never
-export the Termix hosts or credentials into an unencrypted file.
+Termix stores private SSH keys and remote-desktop credentials in its encrypted
+database. The one-time API key used for provisioning was revoked and its
+handoff file deleted immediately after end-to-end SSH authentication tests
+passed. Never export the Termix hosts or credentials into an unencrypted file.
 
-The password is also present in root-only libvirt XML because QEMU VNC accepts
-only an eight-character password. Network isolation is the primary boundary.
-Do not expose port 5909 on `br0`, publish guacd, or commit the password.
+Stock Unraid VNC is unauthenticated unless a runtime password is configured.
+Never port-forward its raw listener; use it only from a trusted management
+network and disable it once the Termix RDP path is proven. Do not publish
+guacd.
 The separate powered-down VFIO VM named `Kubuntu` intentionally has no
 libvirt VNC device: adding an emulated display alongside its passed-through
 iGPU previously stalled Plasma. `Forge Desktop (Kubuntu)` is the supported

@@ -20,7 +20,7 @@ or other application using the libvirt API.
   <os>
     <type arch='x86_64' machine='pc-q35-10.2'>hvm</type>
     <loader readonly='yes' type='pflash' format='raw'>/usr/share/qemu/ovmf-x64/OVMF_CODE-pure-efi.fd</loader>
-    <nvram template='/usr/share/qemu/ovmf-x64/OVMF_VARS-pure-efi.fd' templateFormat='raw' format='raw'>/etc/libvirt/qemu/nvram/1528c7a1-af0a-2d8c-11eb-6c9e2a0faeb0_VARS-pure-efi.fd</nvram>
+    <nvram format='raw'>/etc/libvirt/qemu/nvram/1528c7a1-af0a-2d8c-11eb-6c9e2a0faeb0_VARS-pure-efi.fd</nvram>
     <bootmenu enable='yes'/>
   </os>
   <features>
@@ -34,6 +34,7 @@ or other application using the libvirt API.
   </cpu>
   <clock offset='utc'>
     <timer name='hpet' present='no'/>
+    <timer name='hypervclock' present='no'/>
     <timer name='pit' tickpolicy='delay'/>
     <timer name='rtc' tickpolicy='catchup'/>
   </clock>
@@ -45,20 +46,23 @@ or other application using the libvirt API.
     <disk type='file' device='disk'>
       <driver name='qemu' type='raw' cache='writeback' discard='unmap'/>
       <source file='/mnt/user/domains/Forge/vdisk1.img'/>
-      <target dev='vda' bus='virtio'/>
+      <target dev='hdc' bus='virtio'/>
       <boot order='1'/>
-      <address type='pci' domain='0x0000' bus='0x04' slot='0x00' function='0x0'/>
+      <address type='pci' domain='0x0000' bus='0x03' slot='0x00' function='0x0'/>
     </disk>
     <!-- Keep the workspace disk detached during the interactive installer.
          It is created and attached only after the OS disk is validated. -->
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
       <source file='/mnt/user/isos/kubuntu-26.04-desktop-amd64.iso'/>
-      <target dev='sda' bus='sata'/>
+      <target dev='hda' bus='sata'/>
       <readonly/>
       <boot order='2'/>
       <address type='drive' controller='0' bus='0' target='0' unit='0'/>
     </disk>
+    <controller type='usb' index='0' model='qemu-xhci' ports='15'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x07' function='0x0'/>
+    </controller>
     <controller type='pci' index='0' model='pcie-root'/>
     <controller type='pci' index='1' model='pcie-root-port'>
       <model name='pcie-root-port'/>
@@ -106,9 +110,6 @@ or other application using the libvirt API.
     <controller type='sata' index='0'>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x1f' function='0x2'/>
     </controller>
-    <controller type='usb' index='0' model='qemu-xhci' ports='15'>
-      <address type='pci' domain='0x0000' bus='0x03' slot='0x00' function='0x0'/>
-    </controller>
     <interface type='bridge'>
       <mac address='52:54:00:c7:1f:f3'/>
       <source bridge='br0'/>
@@ -140,15 +141,19 @@ or other application using the libvirt API.
     </input>
     <input type='mouse' bus='ps2'/>
     <input type='keyboard' bus='ps2'/>
-    <!-- FORGE_VNC_RUNTIME_PLACEHOLDER -->
+    <!-- Stock Unraid VNC is retained for installation and break-glass access.
+         Set any VNC secret through Unraid/libvirt at runtime, never in Git. -->
+    <graphics type='vnc' port='-1' autoport='yes' websocket='-1' listen='0.0.0.0' sharePolicy='ignore'>
+      <listen type='address' address='0.0.0.0'/>
+    </graphics>
     <audio id='1' type='none'/>
     <video>
-      <!-- Plain 2D VirtIO is the supported VNC-oriented display path. -->
+      <!-- Plain 2D VirtIO avoids the QXL path implicated in the 2026-07-23
+           guest-kernel spin while retaining a browser-accessible console. -->
       <model type='virtio' heads='1' primary='yes'/>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x0'/>
     </video>
-    <!-- Q35 exposes this implicit device even when omitted. Keep its QEMU
-         action inert in addition to the noreboot override below. -->
+    <!-- Keep Q35's implicit watchdog inert. -->
     <watchdog model='itco' action='none'/>
     <memballoon model='virtio'>
       <address type='pci' domain='0x0000' bus='0x06' slot='0x00' function='0x0'/>
