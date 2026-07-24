@@ -4,6 +4,7 @@ services:
   caddy:
     container_name: caddy
     image: arc-caddy-porkbun:2.11.4
+    pull_policy: build
     build:
       context: .
       dockerfile: Dockerfile
