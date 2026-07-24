@@ -207,8 +207,9 @@ fi
 mountpoint -q /workspace || mount /workspace
 
 MOUNTED_SOURCE="$(findmnt -nro SOURCE --target /workspace)"
-[[ "$(readlink -f "${MOUNTED_SOURCE}")" ==
-   "$(readlink -f "${WORKSPACE_PARTITION}")" ]] || {
+MOUNTED_SOURCE_RESOLVED="$(readlink -f "${MOUNTED_SOURCE}")"
+WORKSPACE_PARTITION_RESOLVED="$(readlink -f "${WORKSPACE_PARTITION}")"
+[[ "${MOUNTED_SOURCE_RESOLVED}" == "${WORKSPACE_PARTITION_RESOLVED}" ]] || {
   echo "Refusing workspace setup: /workspace is mounted from the wrong device."
   exit 1
 }
