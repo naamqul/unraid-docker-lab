@@ -413,20 +413,19 @@ remote-desktop connections. Neither service publishes guacd to the LAN.
 
 Forge installation and break-glass access use the stock Unraid VNC console.
 xRDP is installed, enabled, and reachable directly at Forge's reserved address;
-the live Termix desktop entry still needs its one-time UI conversion from the
-legacy VNC target to RDP.
+the live Termix desktop entry uses RDP at `192.168.50.179:3389`, and its legacy
+VNC protocol is disabled.
 
 The first administrator and a passkey are enrolled. Registration is disabled
 both in Termix's persisted settings and with
 `ALLOW_REGISTRATION: "false"` in `general/compose.yaml`. The two SSH entries
-are operational. Before using the desktop entry, change it to the desired RDP
-settings below and explicitly disable session recording:
+and the RDP desktop entry are operational:
 
 | Termix entry | Protocol | Target | Account |
 | --- | --- | --- | --- |
 | `Arc / Unraid` | SSH | `192.168.50.51:22` | `root` |
 | `Forge` | SSH | `192.168.50.179:22` | `luqmaan` |
-| `Forge Desktop (Kubuntu)` | RDP (UI conversion pending) | `192.168.50.179:3389` | xRDP login screen |
+| `Forge Desktop (Kubuntu)` | RDP | `192.168.50.179:3389` | xRDP login screen |
 
 Arc and Forge use separate Termix-generated Ed25519 credentials; neither
 reuses the Windows administrative key or Forge's GitHub key. Their authorized
@@ -441,9 +440,12 @@ Verify each server's host-key fingerprint when Termix first presents it.
 Termix stores private SSH keys and any configured remote-desktop credentials
 in its encrypted database. For Forge RDP, leave username, password, and domain
 blank so Termix stores no guest login and xRDP prompts at connection time. The
-one-time API key used for provisioning was revoked and its handoff file deleted
-immediately after end-to-end SSH authentication tests passed. Never export the
-Termix hosts or credentials into an unencrypted file.
+profile uses direct authentication, `Any` security, certificate-ignore for
+xRDP's self-signed certificate, and a 3840x2160 display at 144 DPI (150%
+scaling). Its recording path and name are blank, so session recording remains
+disabled. The one-time API key used for provisioning was revoked and its
+handoff file deleted immediately after end-to-end SSH authentication tests
+passed. Never export the Termix hosts or credentials into an unencrypted file.
 
 Stock Unraid VNC is unauthenticated unless a runtime password is configured.
 It is retained for trusted-LAN break-glass access but is not the normal desktop

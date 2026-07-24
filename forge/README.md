@@ -201,9 +201,9 @@ The current guest has completed the following integration pass:
 4. Forge's GitHub key was generated and GitHub's published Ed25519 host key was
    pinned. Only uploading the public key to the GitHub account remains.
 5. xRDP is configured and TCP 3389 is reachable end to end. The live Termix
-   desktop entry still needs its one-time UI conversion from legacy VNC to RDP;
-   leave its username/password blank so xRDP presents the guest login screen,
-   and disable Termix session recording.
+   desktop entry uses RDP at `192.168.50.179:3389`, reaches the xRDP login
+   screen, stores no guest username or password, and has session recording
+   disabled. Its display profile is 3840x2160 at 144 DPI (150% scaling).
 
 For a clean rebuild, replay the tracked integration flow as follows:
 
