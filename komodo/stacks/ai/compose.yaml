@@ -1,68 +1,18 @@
 name: ai
+
 services:
-  gluetun:
-    container_name: gluetun
-    image: qmcgaw/gluetun:latest
+  open-webui:
+    container_name: open-webui
+    image: ghcr.io/open-webui/open-webui:main
     restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-    # extra_hosts:
-    #   - "llama-swap:172.30.0.10"
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    ports:
-      - "3000:8080" # open-webui
-      - "8642:8642" # hermes gateway API
-      - "9119:9119" # hermes dashboard
+    # This stack deliberately shares the one Gluetun namespace owned by the
+    # general stack. Deploy general before ai, and redeploy ai whenever Gluetun
+    # is recreated rather than merely restarted.
+    network_mode: "container:gluetun"
     environment:
-      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-protonvpn}
-      - VPN_TYPE=wireguard
-      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
-      - SERVER_COUNTRIES=United States
-      - SERVER_CITIES=Los Angeles
-      - FIREWALL_INPUT_PORTS=8080,8642,9119
-      - TZ=${TZ:-America/Los_Angeles}
+      PORT: "3000"
+      WEBUI_URL: https://open-webui.arc.bonfireboogie.com
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env}
+      TZ: ${TZ:-America/Los_Angeles}
     volumes:
-      - /mnt/user/appdata/gluetun-state:/gluetun
-    networks:
-      - default
-      - caddy-backend
-
-  # hermes:
-  #   container_name: hermes
-  #   image: nousresearch/hermes-agent:v2026.6.5
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - gluetun
-  #   network_mode: "service:gluetun"
-  #   command: ["gateway", "run"]
-  #   environment:
-  #     - HERMES_UID=${HERMES_UID:-1000}
-  #     - HERMES_GID=${HERMES_GID:-1000}
-  #     - HERMES_DASHBOARD=1
-  #     - HERMES_DASHBOARD_INSECURE=1
-  #     - API_SERVER_ENABLED=true
-  #     - API_SERVER_HOST=0.0.0.0
-  #     - API_SERVER_KEY=${HERMES_API_KEY}
-  #     - API_SERVER_CORS_ORIGINS=*
-  #   volumes:
-  #     - /home/luqmaan/developer/lab/workspace:/opt/workspace
-  #     - /home/luqmaan/developer/lab/config/hermes:/opt/data
-
-  # open-webui:
-  #   image: ghcr.io/open-webui/open-webui:latest
-  #   container_name: open-webui
-  #   depends_on:
-  #     - gluetun
-  #   network_mode: "service:gluetun"
-  #   volumes:
-  #     - "/mnt/user/appdata/open-webui-state/data:/app/backend/data"
-  #   restart: always
-  #   environment:
-  #     - WEBUI_URL=https://open-webui.arc.bonfireboogie.com
-  #     # - OPENAI_API_BASE_URL=http://llama-swap:8080/v1
-
-networks:
-  caddy-backend:
-    name: caddy-backend
-    external: true
+      - /mnt/user/appdata/open-webui-state/data:/app/backend/data

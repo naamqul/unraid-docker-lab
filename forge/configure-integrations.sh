@@ -5,6 +5,7 @@ set -Eeuo pipefail
 : "${KOMODO_VERSION:=v2.2.0}"
 : "${KOMODO_CORE:=https://komodo.arc.bonfireboogie.com}"
 : "${FORGE_SERVER_NAME:=Forge}"
+: "${AGENT_USER:=agent}"
 
 PERIPHERY_SHA256=ace9007805dbfe75ad73c75c36bb26852fa909d825577f31f5d13eecd3c52660
 KM_SHA256=414102fbb259064166702dc7173ffcb1e9acb0707888ffaeba74d5d479a741c5
@@ -170,9 +171,9 @@ download_verified() {
 wait_for_forge_core() {
   local _
   for _ in $(seq 1 30); do
-    if runuser -u codex -- \
-      env HOME="${CODEX_HOME}" \
-      XDG_CONFIG_HOME="${CODEX_HOME}/.config" \
+    if runuser -u "${AGENT_USER}" -- \
+      env HOME="${AGENT_HOME}" \
+      XDG_CONFIG_HOME="${AGENT_HOME}/.config" \
       /usr/local/bin/km list servers \
         --all --format json --name "${FORGE_SERVER_NAME}" \
         2>/dev/null |
@@ -458,16 +459,17 @@ TimeoutStartSec=0
 WantedBy=multi-user.target
 EOF
 
-CODEX_HOME="$(getent passwd codex | cut -d: -f6)"
-CODEX_GROUP="$(id -gn codex)"
-[[ -d "${CODEX_HOME}" && ! -L "${CODEX_HOME}" ]]
-[[ "$(stat -c '%U:%G' "${CODEX_HOME}")" == "codex:${CODEX_GROUP}" ]]
+AGENT_HOME="$(getent passwd "${AGENT_USER}" | cut -d: -f6)"
+AGENT_GROUP="$(id -gn "${AGENT_USER}")"
+[[ -d "${AGENT_HOME}" && ! -L "${AGENT_HOME}" ]]
+[[ "$(stat -c '%U:%G' "${AGENT_HOME}")" == \
+  "${AGENT_USER}:${AGENT_GROUP}" ]]
 ensure_user_directory \
-  codex "${CODEX_GROUP}" 0700 "${CODEX_HOME}/.config"
+  "${AGENT_USER}" "${AGENT_GROUP}" 0700 "${AGENT_HOME}/.config"
 ensure_user_directory \
-  codex "${CODEX_GROUP}" 0700 "${CODEX_HOME}/.config/komodo"
+  "${AGENT_USER}" "${AGENT_GROUP}" 0700 "${AGENT_HOME}/.config/komodo"
 write_user_file \
-  codex "${CODEX_HOME}/.config/komodo/komodo.cli.toml" 0600 <<EOF
+  "${AGENT_USER}" "${AGENT_HOME}/.config/komodo/komodo.cli.toml" 0600 <<EOF
 default_profile = "Arc"
 
 [[profile]]
@@ -504,12 +506,18 @@ EOF
 ensure_user_global_include luqmaan "${ADMIN_HOME}/.ssh/config"
 
 ensure_user_directory \
-  codex "${CODEX_GROUP}" 0700 "${CODEX_HOME}/.ssh"
+  "${AGENT_USER}" "${AGENT_GROUP}" 0700 "${AGENT_HOME}/.ssh"
 ensure_user_directory \
-  codex "${CODEX_GROUP}" 0700 "${CODEX_HOME}/.ssh/config.d"
+  "${AGENT_USER}" "${AGENT_GROUP}" 0700 "${AGENT_HOME}/.ssh/config.d"
 ensure_user_keypair \
-  codex "${CODEX_HOME}/.ssh/unraid_readonly_ed25519" \
-  forge-codex-unraid-readonly
+  "${AGENT_USER}" "${AGENT_HOME}/.ssh/github_docs_ed25519" \
+  forge-agent-github-docs
+ensure_user_keypair \
+  "${AGENT_USER}" "${AGENT_HOME}/.ssh/unraid_readonly_ed25519" \
+  forge-agent-unraid-readonly
+ensure_user_keypair \
+  "${AGENT_USER}" "${AGENT_HOME}/.ssh/unraid_root_ed25519" \
+  forge-agent-unraid-root
 
 UNRAID_HOST_KEY="$(awk '
   $1 ~ /^ssh-ed25519$/ && $2 ~ /^[A-Za-z0-9+\/=]+$/ {
@@ -521,9 +529,21 @@ UNRAID_HOST_KEY="$(awk '
   exit 1
 }
 ensure_user_line \
-  codex "${CODEX_HOME}/.ssh/known_hosts" 0600 "${UNRAID_HOST_KEY}"
+  "${AGENT_USER}" "${AGENT_HOME}/.ssh/known_hosts" 0600 \
+  "${UNRAID_HOST_KEY}"
+ensure_user_line \
+  "${AGENT_USER}" "${AGENT_HOME}/.ssh/known_hosts" 0600 \
+  "${GITHUB_HOST_KEY}"
 write_user_file \
-  codex "${CODEX_HOME}/.ssh/config.d/unraid" 0600 <<'EOF'
+  "${AGENT_USER}" "${AGENT_HOME}/.ssh/config.d/github" 0600 <<'EOF'
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/github_docs_ed25519
+  IdentitiesOnly yes
+EOF
+write_user_file \
+  "${AGENT_USER}" "${AGENT_HOME}/.ssh/config.d/unraid" 0600 <<'EOF'
 Host unraid arc
   HostName 192.168.50.51
   User root
@@ -531,8 +551,16 @@ Host unraid arc
   IdentitiesOnly yes
   StrictHostKeyChecking yes
   UserKnownHostsFile ~/.ssh/known_hosts
+
+Host unraid-root arc-root
+  HostName 192.168.50.51
+  User root
+  IdentityFile ~/.ssh/unraid_root_ed25519
+  IdentitiesOnly yes
+  StrictHostKeyChecking yes
+  UserKnownHostsFile ~/.ssh/known_hosts
 EOF
-ensure_user_global_include codex "${CODEX_HOME}/.ssh/config"
+ensure_user_global_include "${AGENT_USER}" "${AGENT_HOME}/.ssh/config"
 
 /usr/local/sbin/forge-stabilize
 systemctl daemon-reload
@@ -549,7 +577,9 @@ onboarding_revoked=true
 systemctl restart xrdp.service
 
 ssh-keygen -lf "${ADMIN_HOME}/.ssh/github_forge_ed25519.pub"
-ssh-keygen -lf "${CODEX_HOME}/.ssh/unraid_readonly_ed25519.pub"
+ssh-keygen -lf "${AGENT_HOME}/.ssh/github_docs_ed25519.pub"
+ssh-keygen -lf "${AGENT_HOME}/.ssh/unraid_readonly_ed25519.pub"
+ssh-keygen -lf "${AGENT_HOME}/.ssh/unraid_root_ed25519.pub"
 printf '%s\n' \
   'Forge integrations installed; Core onboarding was verified, removed,' \
-  'and revoked. Authorize only the printed codex public-key fingerprint on Arc.'
+  'and revoked. Authorize only the printed scoped agent-key fingerprints.'

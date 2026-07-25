@@ -16,7 +16,10 @@ bootstrap configuration it contains.
 Any change that adds, removes, or materially changes a service, endpoint,
 dependency, network path, storage path, access boundary, backup policy, or
 monitoring coverage must include the corresponding documentation update or a
-linked `documentation-drift` issue.
+linked `documentation-drift` issue. A service lifecycle or canonical-endpoint
+change must also update `komodo/stacks/general/homepage/services.yaml` in the
+same change; Homepage is the human-facing service inventory, not an optional
+follow-up.
 
 ## Layout
 
@@ -90,9 +93,8 @@ Komodo can manage the application stacks below `komodo/stacks/`.
   `/mnt/user/appdata/komodo-state` and must be included in appdata backups.
 - Komodo database exports are written to
   `/mnt/user/appdata/komodo-state/backups`.
-- Open WebUI's reserved data path is outside the repository at
-  `/mnt/user/appdata/open-webui-state/data`; the service is not currently
-  deployed.
+- Open WebUI's deployed state is outside the repository at
+  `/mnt/user/appdata/open-webui-state/data`.
 - The real `.env` is intentionally excluded from Git and must be backed up
   securely through a separate encrypted mechanism.
 
@@ -138,12 +140,10 @@ The primary, publicly trusted names are:
 | `homepage.arc.bonfireboogie.com` | `homepage:3000` |
 | `beszel.arc.bonfireboogie.com` | `beszel:8090` |
 | `termix.arc.bonfireboogie.com` | `termix:8080` |
-| `jdownloader.arc.bonfireboogie.com` | `general-gluetun:5800` |
+| `jdownloader.arc.bonfireboogie.com` | `gluetun:5800` |
 | `filebrowser.arc.bonfireboogie.com` | `filebrowser:80` |
-| `searxng.arc.bonfireboogie.com` | `general-gluetun:8080` |
-| `open-webui.arc.bonfireboogie.com` | Reserved for planned Open WebUI (`gluetun:8080`) |
-| `hermes.arc.bonfireboogie.com` | Reserved for planned Hermes dashboard (`gluetun:9119`) |
-| `hermes-api.arc.bonfireboogie.com` | Reserved for planned Hermes API (`gluetun:8642`) |
+| `searxng.arc.bonfireboogie.com` | `gluetun:8080` |
+| `open-webui.arc.bonfireboogie.com` | Open WebUI through shared VPN namespace (`gluetun:3000`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 
 The prior `.arc.home.arpa` Caddy handlers remain as dormant migration aliases.
@@ -171,9 +171,9 @@ unreliable across operating systems and Tailscale.
    not expose a port or service. It preserves signed DNS answers and makes the
    same names work with arbitrary client DNS/DoH providers. Remove any
    NextDNS rewrite for `arc.bonfireboogie.com`; a synthesized unsigned answer
-   conflicts with strict validation on the ASUS resolver. Keep the existing
-   `router.arc.home.arpa` rewrite to `192.168.50.1`; the router uses plain HTTP
-   directly and intentionally bypasses Caddy.
+   conflicts with strict validation on the ASUS resolver. The ASUS tile uses
+   `http://192.168.50.1/` directly because the removed `arc.home.arpa` rewrite
+   no longer resolves and proxying the router through Caddy is fragile.
 3. In the Tailscale admin console, open Arc's route settings and approve
    `192.168.50.0/24`. Advertising a route on Arc does not activate it until it
    is approved, unless an `autoApprovers` policy already covers it.
@@ -278,11 +278,13 @@ For an ordinary container:
 For a container using `network_mode: service:gluetun`, do not attach that
 container separately. Attach `gluetun` to `caddy-backend`, add the application's
 listening port to Gluetun's `FIREWALL_INPUT_PORTS`, and proxy to
-`gluetun:<internal-port>` as the reserved Open WebUI and Hermes entries do.
+`gluetun:<internal-port>`.
 
-Host-published ports on Gluetun are currently retained as a recovery path.
-After Open WebUI and Hermes are enabled and work through Caddy, those `ports:`
-entries can be removed to make Caddy the only LAN entry point.
+Open WebUI is intentionally a separate Komodo stack and therefore uses
+`network_mode: container:gluetun`. Cross-project dependencies cannot be
+expressed with Compose `depends_on`: deploy `general` before `ai`, and redeploy
+`ai` whenever the Gluetun container is recreated. A simple Gluetun restart
+preserves the namespace and does not require that follow-up.
 
 ## Komodo stack ownership
 
@@ -313,10 +315,9 @@ printf '\n' | docker exec -i komodo km execute deploy-stack jellyfin
 printf '\n' | docker exec -i komodo km execute deploy-stack forge-observability
 ```
 
-The `ai` stack currently deploys only its Gluetun VPN gateway. The Hermes and
-Open WebUI service definitions remain commented out in `ai/compose.yaml` and
-their Caddy names are reserved for a future deployment; neither application is
-currently running.
+The `ai` stack deploys Open WebUI. It shares the single Gluetun network
+namespace owned by `general`; Hermes and the former AI-specific Gluetun have
+been retired.
 
 Forge also has a **Files on host** stack named `forge-observability`, on server
 `Forge`, rooted at `/etc/komodo/stacks/forge-observability`. It is deployed and
@@ -325,13 +326,13 @@ inbound Forge port is required.
 
 ## General services
 
-The `general` stack contains Homepage, Beszel Hub, FileBrowser Quantum,
+The `general` stack contains Gluetun, Homepage, Beszel Hub, FileBrowser Quantum,
 JDownloader 2, SearXNG, Termix, guacd, and a restricted Docker socket proxy for
-Homepage.
-JDownloader and SearXNG share `general-gluetun`'s network namespace, so their
+Homepage. JDownloader and SearXNG share `gluetun`'s network namespace, so their
 DNS and application traffic leave through that VPN tunnel. Caddy reaches their
-web interfaces through ports 5800 and 8080 on `general-gluetun`; neither port
-is published directly on the LAN.
+web interfaces through ports 5800 and 8080 on `gluetun`; neither port is
+published directly on the LAN. Open WebUI joins the same namespace from the
+separate `ai` stack and listens on port 3000.
 
 Both namespace-sharing services wait for Gluetun's health check during an
 ordered Compose `up`, and `restart: true` restarts them when Gluetun is
@@ -342,7 +343,7 @@ containers and can briefly stop the network namespace before its dependents.
 Persistent state is outside Git:
 
 ```text
-/mnt/user/appdata/general-gluetun-state
+/mnt/user/appdata/gluetun-state
 /mnt/user/appdata/jdownloader-state
 /mnt/user/appdata/filebrowser
 /mnt/user/appdata/searxng-state
@@ -353,7 +354,9 @@ Persistent state is outside Git:
 
 The real `general/.env` contains the VPN credential plus generated SearXNG,
 JDownloader, and FileBrowser secrets. Keep it in encrypted backups and do not
-commit it. JDownloader writes downloads to `/mnt/user/booty/downloads` as
+commit it. The real `ai/.env` contains Open WebUI's persistent secret key and
+has the same handling requirement. JDownloader writes downloads to
+`/mnt/user/booty/downloads` as
 Unraid's `nobody:users` account (`99:100`). FileBrowser maps the complete
 `/mnt/user/booty` share at `/files/stash`, exposes `/files` as its source root,
 and also runs as `99:100`. The UI therefore shows `stash` as a folder instead

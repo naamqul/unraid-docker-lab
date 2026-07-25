@@ -79,7 +79,7 @@ arc.bonfireboogie.com {
 
 	@jdownloader host jdownloader.arc.bonfireboogie.com
 	handle @jdownloader {
-		reverse_proxy https://general-gluetun:5800 {
+		reverse_proxy https://gluetun:5800 {
 			transport http {
 				tls_insecure_skip_verify
 			}
@@ -93,22 +93,12 @@ arc.bonfireboogie.com {
 
 	@searxng host searxng.arc.bonfireboogie.com
 	handle @searxng {
-		reverse_proxy general-gluetun:8080
+		reverse_proxy gluetun:8080
 	}
 
 	@open_webui host open-webui.arc.bonfireboogie.com
 	handle @open_webui {
-		reverse_proxy gluetun:8080
-	}
-
-	@hermes host hermes.arc.bonfireboogie.com
-	handle @hermes {
-		reverse_proxy gluetun:9119
-	}
-
-	@hermes_api host hermes-api.arc.bonfireboogie.com
-	handle @hermes_api {
-		reverse_proxy gluetun:8642
+		reverse_proxy gluetun:3000
 	}
 
 	handle {
@@ -167,7 +157,7 @@ termix.arc.home.arpa {
 
 jdownloader.arc.home.arpa {
 	import private_tls
-	reverse_proxy https://general-gluetun:5800 {
+	reverse_proxy https://gluetun:5800 {
 		transport http {
 			tls_insecure_skip_verify
 		}
@@ -181,20 +171,10 @@ filebrowser.arc.home.arpa {
 
 searxng.arc.home.arpa {
 	import private_tls
-	reverse_proxy general-gluetun:8080
+	reverse_proxy gluetun:8080
 }
 
 open-webui.arc.home.arpa {
 	import private_tls
-	reverse_proxy gluetun:8080
-}
-
-hermes.arc.home.arpa {
-	import private_tls
-	reverse_proxy gluetun:9119
-}
-
-hermes-api.arc.home.arpa {
-	import private_tls
-	reverse_proxy gluetun:8642
+	reverse_proxy gluetun:3000
 }

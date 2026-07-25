@@ -18,7 +18,7 @@ services:
     environment:
       SP_PROXYSOCKETENDPOINT: /beszel-docker-api/docker.sock
       SP_PROXYSOCKETENDPOINTFILEMODE: "0600"
-      SP_ALLOW_GET: '/(v[0-9.]+/)?(version|info|containers/.*)'
+      SP_ALLOW_GET: '/(v[0-9.]+/)?(version|info|containers/json|containers/[a-f0-9]+/stats)'
       SP_LOGLEVEL: WARN
       SP_WATCHDOGINTERVAL: "60"
       SP_STOPONWATCHDOG: "true"

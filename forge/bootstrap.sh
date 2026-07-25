@@ -52,6 +52,7 @@ apt-get install -y \
   plasma-session-x11 kwin-x11 \
   xrdp xorgxrdp dbus-x11 \
   openssh-server unattended-upgrades ufw \
+  uidmap slirp4netns fuse-overlayfs dbus-user-session \
   ca-certificates curl wget gnupg \
   git git-lfs gh \
   jq ripgrep fd-find fzf \
@@ -87,27 +88,25 @@ fi
 getent group agent-workspace >/dev/null || groupadd --system agent-workspace
 usermod -aG sudo,agent-workspace "${ADMIN_USER}"
 
-for user in codex claude hermes; do
-  if ! id "${user}" >/dev/null 2>&1; then
-    # Agent identities are non-interactive service principals. Keeping their
-    # UIDs below the normal-login range also keeps them out of SDDM.
-    useradd --system --create-home --shell /usr/sbin/nologin "${user}"
+if ! id agent >/dev/null 2>&1; then
+  # The shared service identity remains hidden from SDDM because it uses a
+  # system UID. Its shell is available only through an authorized local sudo
+  # transition; the password itself remains locked.
+  useradd --system --create-home --shell /bin/bash agent
+fi
+usermod -aG agent-workspace agent
+usermod -L agent
+chmod 0700 "$(getent passwd agent | cut -d: -f6)"
+for forbidden_group in sudo docker; do
+  if id -nG agent | tr ' ' '\n' | grep -qx "${forbidden_group}"; then
+    gpasswd -d agent "${forbidden_group}"
   fi
-
-  usermod -aG agent-workspace "${user}"
-  usermod -L "${user}"
-  chmod 0700 "$(getent passwd "${user}" | cut -d: -f6)"
-
-  for forbidden_group in sudo docker; do
-    if id -nG "${user}" | tr ' ' '\n' | grep -qx "${forbidden_group}"; then
-      gpasswd -d "${user}" "${forbidden_group}"
-    fi
-  done
 done
 
 ADMIN_HOME="$(getent passwd "${ADMIN_USER}" | cut -d: -f6)"
 ADMIN_GROUP="$(id -gn "${ADMIN_USER}")"
 AUTHORIZED_KEYS="${ADMIN_HOME}/.ssh/authorized_keys"
+chmod 0700 "${ADMIN_HOME}"
 
 install -d -o "${ADMIN_USER}" -g "${ADMIN_GROUP}" -m 0700 \
   "${ADMIN_HOME}/.ssh"
@@ -229,12 +228,15 @@ install -d -o root -g agent-workspace -m 2770 \
   /workspace/builds \
   /workspace/cache
 
-for user in codex claude hermes; do
-  install -d -o "${user}" -g agent-workspace -m 2770 \
-    "/workspace/worktrees/${user}" \
-    "/workspace/builds/${user}" \
-    "/workspace/cache/${user}"
-done
+install -d -o agent -g agent-workspace -m 2770 \
+  /workspace/agent \
+  /workspace/agent/repos \
+  /workspace/agent/state \
+  /workspace/agent/cache \
+  /workspace/agent/builds \
+  /workspace/worktrees/agent \
+  /workspace/builds/agent \
+  /workspace/cache/agent
 
 while IFS= read -r directory; do
   setfacl -m u::rwx,g::rwx,m::rwx,o::--- "${directory}"
@@ -279,12 +281,15 @@ EOF
 apt-get update
 apt-get install -y \
   docker-ce docker-ce-cli containerd.io \
-  docker-buildx-plugin docker-compose-plugin
+  docker-buildx-plugin docker-compose-plugin \
+  docker-ce-rootless-extras
 
 systemctl enable --now containerd.service docker.service
 
 # Docker access remains deliberately root-only. Membership in the docker group
 # is equivalent to root and is not granted to human or agent identities.
+
+bash "${SCRIPT_DIR}/migrate-shared-agent.sh"
 
 if [[ -e "${SWAPFILE}" ]]; then
   [[ "$(blkid -p -s TYPE -o value "${SWAPFILE}" 2>/dev/null || true)" == "swap" ]] || {

@@ -1,8 +1,8 @@
 name: general
 
 services:
-  general-gluetun:
-    container_name: general-gluetun
+  gluetun:
+    container_name: gluetun
     image: qmcgaw/gluetun:latest
     restart: unless-stopped
     cap_add:
@@ -15,10 +15,10 @@ services:
       WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY}
       SERVER_COUNTRIES: United States
       SERVER_CITIES: Los Angeles
-      FIREWALL_INPUT_PORTS: 5800,8080
+      FIREWALL_INPUT_PORTS: 3000,5800,8080
       TZ: ${TZ:-America/Los_Angeles}
     volumes:
-      - /mnt/user/appdata/general-gluetun-state:/gluetun
+      - /mnt/user/appdata/gluetun-state:/gluetun
     networks:
       - default
       - caddy-backend
@@ -28,10 +28,10 @@ services:
     image: jlesage/jdownloader-2:latest
     restart: unless-stopped
     depends_on:
-      general-gluetun:
+      gluetun:
         condition: service_healthy
         restart: true
-    network_mode: service:general-gluetun
+    network_mode: service:gluetun
     environment:
       USER_ID: 99
       GROUP_ID: 100
@@ -52,10 +52,10 @@ services:
     image: docker.io/searxng/searxng:latest
     restart: unless-stopped
     depends_on:
-      general-gluetun:
+      gluetun:
         condition: service_healthy
         restart: true
-    network_mode: service:general-gluetun
+    network_mode: service:gluetun
     environment:
       SEARXNG_BASE_URL: https://searxng.arc.bonfireboogie.com/
       SEARXNG_BIND_ADDRESS: 0.0.0.0
@@ -109,6 +109,7 @@ services:
     environment:
       APP_URL: https://beszel.arc.bonfireboogie.com
       CHECK_UPDATES: "true"
+      CONTAINER_DETAILS: "false"
     ports:
       - 127.0.0.1:8090:8090
     volumes:
@@ -137,7 +138,7 @@ services:
     environment:
       SP_PROXYSOCKETENDPOINT: /beszel-docker-api/docker.sock
       SP_PROXYSOCKETENDPOINTFILEMODE: "0600"
-      SP_ALLOW_GET: '/(v[0-9.]+/)?(version|info|containers/.*)'
+      SP_ALLOW_GET: '/(v[0-9.]+/)?(version|info|containers/json|containers/[a-f0-9]+/stats)'
       SP_LOGLEVEL: WARN
       SP_WATCHDOGINTERVAL: "60"
       SP_STOPONWATCHDOG: "true"

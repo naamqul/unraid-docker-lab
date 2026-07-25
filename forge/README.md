@@ -65,25 +65,28 @@ terminates a process. Sustained known-heavy workloads should still have their
 target raised deliberately through Unraid or `virsh setmem`; autodeflate is an
 emergency safety net rather than capacity planning.
 
-`codex`, `claude`, and `hermes` are locked service identities. They share only
-the `agent-workspace` group and are deliberately absent from `sudo` and
-`docker`. Docker group membership is root-equivalent and must not be granted
-casually.
+`agent` is the single locked service identity shared by Codex, Claude Code, and
+Hermes. It uses a system UID, a locked password, and a shell reachable only
+through an authorized local transition such as `sudo -iu agent`; it does not
+appear in SDDM and is deliberately absent from `sudo` and the rootful `docker`
+group. The earlier `codex`, `claude`, and `hermes` accounts remain locked only
+as rollback identities until their retained configuration has been retired.
 
-The `codex` identity has two narrowly scoped integrations:
+The shared identity has narrowly scoped integrations:
 
 - Komodo CLI credentials in
-  `/home/codex/.config/komodo/komodo.cli.toml`, mode `0600`.
+  `/home/agent/.config/komodo/komodo.cli.toml`, mode `0600`.
 - A forced-command SSH key for Arc. The matching Unraid entry permits only the
   commands defined by `unraid-readonly-wrapper.sh`; it does not provide a
-  shell, forwarding, or arbitrary root execution. Its public-key fingerprint
-  is `SHA256:KAo11QivnAP/hpB5odluG2bDbAs0QGpXCh7LZRC55O0`.
+  shell, forwarding, or arbitrary root execution.
+- A separate, normally unauthorized root key. Arc can grant it only from
+  Forge's reserved address with an OpenSSH `expiry-time`, and the grant helper
+  records the task, reason, fingerprint, expiry, and revocation.
+- A repository-scoped GitHub deploy key for `homelab-agent-docs`.
 
-Forge's replacement GitHub Ed25519 key exists as
-`/home/luqmaan/.ssh/github_forge_ed25519`; its fingerprint is
-`SHA256:3hvdNG7n6XEwI1ZJLKLatJoNA4Vfoflg361fq0gfZ3A`. Adding the public half to
-the GitHub account remains a user-controlled step. The legacy VM's key and
-fingerprint are not identities of the replacement guest.
+The `agent` identity runs its own rootless Docker daemon and data root under
+`/workspace/agent/state/docker`. Rootful Docker remains available only to root
+for Periphery-managed system services.
 
 Komodo Periphery `2.2.0` runs as a root systemd service in outbound mode to
 `https://komodo.arc.bonfireboogie.com`. It opens no inbound port, uses a
@@ -99,26 +102,23 @@ and agent-service credentials must never be committed here.
 
 ```text
 /workspace/
-├── repos/                 # Canonical working repositories
-├── shared/                # Cross-agent artifacts
-├── inbox/                 # Staging/import area
-├── worktrees/
-│   ├── codex/
-│   ├── claude/
-│   └── hermes/
-├── builds/
-│   ├── codex/
-│   ├── claude/
-│   └── hermes/
-└── cache/
-    ├── codex/
-    ├── claude/
-    └── hermes/
+├── agent/
+│   ├── repos/              # Shared harness repositories
+│   ├── state/              # Runtime and rootless Docker state
+│   ├── cache/              # Shared harness caches
+│   └── builds/             # Shared build outputs
+├── repos/                  # Canonical working repositories
+├── shared/                 # Shared artifacts
+├── inbox/                  # Staging/import area
+├── worktrees/agent/
+├── builds/agent/
+└── cache/agent/
 ```
 
 Directories are setgid and have default ACLs so new files remain writable by
-`agent-workspace`. Per-agent worktrees and build directories reduce concurrent
-edit and build collisions. The mount root is mode `3770`: its sticky bit
+`agent-workspace`. Harnesses use separate Git worktrees when concurrent edits
+would collide, while credentials and runtime state share the one Unix
+principal. The mount root is mode `3770`: its sticky bit
 prevents an agent from replacing root-owned top-level control entries while
 preserving group collaboration. `/workspace/.system/beszel` is a root-only
 mount marker used solely to report workspace filesystem metrics.
@@ -133,17 +133,22 @@ mount marker used solely to report workspace filesystem metrics.
 - `bootstrap.sh` installs the guest baseline and safely initializes an empty
   256 GiB `/dev/vdb` as `/workspace`. It requires an external public key file;
   no key is embedded.
+- `migrate-shared-agent.sh` creates or reconciles the locked `agent` principal,
+  rootless Docker, scoped keys, workspace state, and all three CLI harnesses.
 - `stabilize.sh` applies the mandatory Kubuntu 26.04 shadow-stack/fwupd and
   Q35 iTCO containment before the rest of bootstrap work.
 - `configure-integrations.sh` installs pinned, checksummed Periphery and `km`
   `2.2.0` binaries; configures outbound-only Periphery and the restricted
-  `codex` integrations; stages observability files; and removes one-time
+  shared-agent integrations; stages observability files; and removes one-time
   Komodo credentials after use.
 - `unraid-readonly-wrapper.sh` is installed on Arc at the same path as this
   repository copy and is the allowlist behind the Forge-to-Unraid SSH key.
 - `authorize-unraid-agent-key.sh` runs on Arc and atomically installs that
   public key with the source-IP, `restrict`, and forced-command controls. It
   refuses a writable wrapper, unsafe input file, or conflicting prior key.
+- `manage-unraid-agent-root.sh` grants, reports, and revokes the separate
+  source-restricted root key with a maximum eight-hour OpenSSH expiry and a
+  persistent root-only audit log.
 - `stacks/forge-observability` contains the outbound Beszel agent, a
   GET-filtered Docker proxy exposed only as a root-only Unix socket, and the
   hidden-prompt enrollment helper.
@@ -195,11 +200,11 @@ The current guest has completed the following integration pass:
 2. `enroll-forge-beszel` and the observability Compose file are installed in
    their documented locations. Forge is enrolled, its two-container stack is
    deployed, and the one-time enrollment files were deleted.
-3. The `codex` Komodo CLI profile works, and the forced-command Arc key passed
+3. The shared `agent` Komodo CLI profile works, and the forced-command Arc key passed
    both its allowlisted `host-summary` test and an arbitrary-command rejection
    test. The one-time Komodo onboarding key was removed and revoked.
-4. Forge's GitHub key was generated and GitHub's published Ed25519 host key was
-   pinned. Only uploading the public key to the GitHub account remains.
+4. Forge's repository-scoped GitHub key was generated, authorized as a deploy
+   key, and GitHub's published Ed25519 host key was pinned.
 5. xRDP is configured and TCP 3389 is reachable end to end. The live Termix
    desktop entry uses RDP at `192.168.50.179:3389`, reaches the xRDP login
    screen, stores no guest username or password, and has session recording
@@ -254,25 +259,39 @@ For a clean rebuild, replay the tracked integration flow as follows:
    Core revocation cannot be confirmed, it retains the root-only
    `onboarding-public-key` file and prints a warning; revoke that exact key in
    Komodo before retrying.
-4. Copy `/home/codex/.ssh/unraid_readonly_ed25519.pub` to a root-owned temporary
+4. Copy `/home/agent/.ssh/unraid_readonly_ed25519.pub` to a root-owned temporary
    file on Arc, then run:
 
    ```bash
-   # First installation:
-   /mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh \
-     /tmp/forge-codex-unraid-readonly.pub
+    # First installation:
+    /mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh \
+      /tmp/forge-agent-unraid-readonly.pub
 
-   # Replacement guest with the prior marked entry still present:
-   /mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh \
-     --rotate /tmp/forge-codex-unraid-readonly.pub
+    # Replacement guest with the prior marked entry still present:
+    /mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh \
+      --rotate /tmp/forge-agent-unraid-readonly.pub
    ```
 
    On a replacement guest, review the existing marked key and add `--rotate`
    before the public-key path. The helper then atomically replaces only the
-   previously restricted `forge-codex-unraid-readonly` entry and prints both
+   previously restricted Forge read-only entry and prints both
    fingerprints. Remove the temporary public file after authorization and verify
-   `sudo -H -u codex ssh unraid host-summary` succeeds while an arbitrary
+   `sudo -H -u agent ssh unraid host-summary` succeeds while an arbitrary
    command is rejected.
+   For exceptional maintenance, stage
+   `/home/agent/.ssh/unraid_root_ed25519.pub` on Arc and use the separate
+   audited helper:
+
+   ```bash
+   forge/manage-unraid-agent-root.sh grant \
+     /tmp/forge-agent-unraid-root.pub 60 issue-123 \
+     "Exact approved maintenance reason"
+   forge/manage-unraid-agent-root.sh status
+   forge/manage-unraid-agent-root.sh revoke \
+     issue-123 "Maintenance complete"
+   ```
+
+   Never substitute this temporary key for the standing forced-command key.
 5. Enroll Beszel only after the preceding trust paths pass. A normal Beszel
    user automatically owns the new record. When authenticating as a Beszel
    superuser, also provide the intended 15-character normal-user record ID at
@@ -321,10 +340,11 @@ Inside Forge:
 systemctl is-active ssh qemu-guest-agent docker containerd xrdp periphery
 findmnt /workspace
 swapon --show
-docker version
-docker compose version
-sudo -H -u codex km core-info
-sudo -H -u codex ssh unraid host-summary
+sudo docker version
+sudo docker compose version
+sudo -iu agent docker info
+sudo -iu agent km core-info
+sudo -iu agent ssh unraid host-summary
 systemctl is-enabled fwupd.service fwupd-refresh.service fwupd-refresh.timer
 modprobe -n -v iTCO_wdt
 ```

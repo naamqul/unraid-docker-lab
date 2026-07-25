@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 FORGE_IP=192.168.50.179
 REPO=/mnt/user/appdata/unraid-docker-lab
+MARKER=forge-agent-unraid-readonly
+LEGACY_MARKER=forge-codex-unraid-readonly
 rotate=false
 
 if [[ ${1:-} == --rotate ]]; then
@@ -51,12 +53,12 @@ validate_root_file "${WRAPPER}"
 read -r key_type key_body key_comment <"${PUBKEY_FILE}"
 [[ "${key_type}" == ssh-ed25519 ]]
 [[ "${key_body}" =~ ^[A-Za-z0-9+/=]+$ ]]
-[[ "${key_comment}" == forge-codex-unraid-readonly ]]
+[[ "${key_comment}" == "${MARKER}" ]]
 
 fingerprint="$(ssh-keygen -lf "${PUBKEY_FILE}" | awk '{print $2}')"
 [[ "${fingerprint}" == SHA256:* ]]
 
-entry='from="'"${FORGE_IP}"'",restrict,command="'"${WRAPPER}"'" ssh-ed25519 '"${key_body}"' forge-codex-unraid-readonly'
+entry='from="'"${FORGE_IP}"'",restrict,command="'"${WRAPPER}"'" ssh-ed25519 '"${key_body}"' '"${MARKER}"
 expected_options='from="'"${FORGE_IP}"'",restrict,command="'"${WRAPPER}"'"'
 
 install -d -o root -g root -m 0700 "$(dirname "${AUTHORIZED}")"
@@ -65,7 +67,7 @@ chown root:root "${AUTHORIZED}"
 chmod 0600 "${AUTHORIZED}"
 
 mapfile -t marked_entries < <(
-  grep -E ' forge-codex-unraid-readonly$' "${AUTHORIZED}" || true
+  grep -E " (${MARKER}|${LEGACY_MARKER})$" "${AUTHORIZED}" || true
 )
 
 if grep -qF -- "${key_body}" "${AUTHORIZED}"; then
@@ -77,7 +79,7 @@ else
   old_entry=
   if [[ "${#marked_entries[@]}" -gt 0 ]]; then
     [[ "${#marked_entries[@]}" -eq 1 ]] || {
-      echo "Multiple marked Forge codex keys exist; review them manually." >&2
+      echo "Multiple marked Forge agent keys exist; review them manually." >&2
       exit 1
     }
     old_entry="${marked_entries[0]}"
@@ -85,23 +87,24 @@ else
     [[ "${old_options}" == "${expected_options}" &&
        "${old_type}" == ssh-ed25519 &&
        "${old_body}" =~ ^[A-Za-z0-9+/=]+$ &&
-       "${old_comment}" == forge-codex-unraid-readonly ]] || {
+       ( "${old_comment}" == "${MARKER}" ||
+         "${old_comment}" == "${LEGACY_MARKER}" ) ]] || {
       echo "The existing marked Forge key has unsafe restrictions." >&2
       exit 1
     }
     [[ "${rotate}" == true ]] || {
-      echo "A different Forge codex key exists; rerun with --rotate after review." >&2
+      echo "A different Forge agent key exists; rerun with --rotate after review." >&2
       exit 1
     }
   fi
 
   temporary="$(mktemp "${AUTHORIZED}.XXXXXX")"
-  old_key_file="$(mktemp /tmp/forge-codex-old-key.XXXXXX)"
+  old_key_file="$(mktemp /tmp/forge-agent-old-key.XXXXXX)"
   trap 'rm -f -- "${temporary}" "${old_key_file}"' EXIT
   if [[ -n "${old_entry}" ]]; then
     grep -vxF -- "${old_entry}" "${AUTHORIZED}" >"${temporary}" || true
-    printf 'ssh-ed25519 %s forge-codex-unraid-readonly\n' \
-      "${old_body}" >"${old_key_file}"
+    printf 'ssh-ed25519 %s %s\n' \
+      "${old_body}" "${old_comment}" >"${old_key_file}"
     old_fingerprint="$(
       ssh-keygen -lf "${old_key_file}" | awk '{print $2}'
     )"
