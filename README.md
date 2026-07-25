@@ -4,6 +4,20 @@ Version-controlled Docker Compose and hand-authored configuration for the
 Unraid host `Arc`. Mutable application state lives outside this repository in
 cache-backed `appdata` directories.
 
+## Operational documentation
+
+The private
+[`naamqul/homelab-agent-docs`](https://github.com/naamqul/homelab-agent-docs)
+repository is the canonical source for homelab architecture, inventory,
+dependencies, access policy, runbooks, and active project handoffs. This
+repository remains authoritative for the deployable Compose, Caddy, Forge, and
+bootstrap configuration it contains.
+
+Any change that adds, removes, or materially changes a service, endpoint,
+dependency, network path, storage path, access boundary, backup policy, or
+monitoring coverage must include the corresponding documentation update or a
+linked `documentation-drift` issue.
+
 ## Layout
 
 ```text
