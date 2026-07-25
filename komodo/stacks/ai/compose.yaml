@@ -5,6 +5,8 @@ services:
     container_name: open-webui
     image: ghcr.io/open-webui/open-webui:main
     restart: unless-stopped
+    labels:
+      com.bonfireboogie.control-plane-canary: issue-5
     # This stack deliberately shares the one Gluetun namespace owned by the
     # general stack. Deploy general before ai, and redeploy ai whenever Gluetun
     # is recreated rather than merely restarted.
