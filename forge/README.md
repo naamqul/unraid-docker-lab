@@ -135,6 +135,10 @@ mount marker used solely to report workspace filesystem metrics.
   no key is embedded.
 - `migrate-shared-agent.sh` creates or reconciles the locked `agent` principal,
   rootless Docker, scoped keys, workspace state, and all three CLI harnesses.
+- `install-onepassword-cli.sh` verifies 1Password's published repository-key
+  fingerprint and installs the official CLI without configuring an account,
+  vault, item, or token. Credential provisioning follows the canonical
+  `homelab-agent-docs/runbooks/provision-agent-1password.md` runbook.
 - `stabilize.sh` applies the mandatory Kubuntu 26.04 shadow-stack/fwupd and
   Q35 iTCO containment before the rest of bootstrap work.
 - `configure-integrations.sh` installs pinned, checksummed Periphery and `km`
@@ -345,6 +349,7 @@ sudo docker compose version
 sudo -iu agent docker info
 sudo -iu agent km core-info
 sudo -iu agent ssh unraid host-summary
+op --version
 systemctl is-enabled fwupd.service fwupd-refresh.service fwupd-refresh.timer
 modprobe -n -v iTCO_wdt
 ```
