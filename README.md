@@ -143,10 +143,11 @@ The primary, publicly trusted names are:
 | `jdownloader.arc.bonfireboogie.com` | `gluetun:5800` |
 | `filebrowser.arc.bonfireboogie.com` | `filebrowser:80` |
 | `searxng.arc.bonfireboogie.com` | `gluetun:8080` |
+| `neko.arc.bonfireboogie.com` | Neko Brave UI/signaling through shared VPN namespace (`gluetun:8081`) |
 | `open-webui.arc.bonfireboogie.com` | Open WebUI through shared VPN namespace (`gluetun:3000`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
-| `llama-swap.dlbox.bonfireboogie.com` | DLBox workstation at `192.168.50.125:9292` |
-| `unsloth.dlbox.bonfireboogie.com` | DLBox workstation at `192.168.50.125:8188` |
+| `llama-swap.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:9292` |
+| `unsloth.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:8188` |
 
 The prior `.arc.home.arpa` Caddy handlers remain as dormant migration aliases.
 Their NextDNS rewrites were removed, so they resolve only on a client with an
@@ -167,7 +168,7 @@ unreliable across operating systems and Tailscale.
    ```text
    arc.bonfireboogie.com    A  192.168.50.52
    *.arc.bonfireboogie.com  A  192.168.50.52
-   *.dlbox.bonfireboogie.com A 192.168.50.52
+   *.blackwell.bonfireboogie.com A 192.168.50.52
    ```
 
    Publishing an RFC1918 address reveals the internal Caddy address but does
@@ -290,8 +291,8 @@ expressed with Compose `depends_on`: deploy `general` before `ai`, and redeploy
 preserves the namespace and does not require that follow-up.
 
 External workstation services use their own wildcard site. The
-`*.dlbox.bonfireboogie.com` block proxies only explicitly matched hostnames to
-the reserved DLBox address `192.168.50.125`. Windows Firewall permits the raw
+`*.blackwell.bonfireboogie.com` block proxies only explicitly matched hostnames to
+the reserved Blackwell address `192.168.50.125`. Windows Firewall permits the raw
 ports only from Arc (`192.168.50.51`) and Caddy (`192.168.50.52`); no WAN port
 forward is used.
 
@@ -333,31 +334,33 @@ Forge also has a **Files on host** stack named `forge-observability`, on server
 runs an outbound-only Beszel agent plus a GET-filtered Docker socket proxy; no
 inbound Forge port is required.
 
-The Windows workstation is represented by the Komodo server `DLBox`. Its
+The Windows workstation is represented by the Komodo server `Blackwell`. Its
 Periphery bootstrap and independent inference Compose files live in the
-separate `naamqul/dlbox-docker-lab` repository. Multiple Komodo Stack resources
+separate `naamqul/blackwell-docker-lab` repository. Multiple Komodo Stack resources
 can point to different Compose files in that one repository; a repository per
 service is unnecessary.
 
 ## General services
 
 The `general` stack contains Gluetun, Homepage, Beszel Hub, FileBrowser Quantum,
-JDownloader 2, SearXNG, Termix, guacd, and a restricted Docker socket proxy for
-Homepage. JDownloader and SearXNG share `gluetun`'s network namespace, so their
-DNS and application traffic leave through that VPN tunnel. Caddy reaches their
-web interfaces through ports 5800 and 8080 on `gluetun`; neither port is
-published directly on the LAN. Open WebUI joins the same namespace from the
-separate `ai` stack and listens on port 3000.
+JDownloader 2, SearXNG, Neko with Brave, Termix, guacd, and a restricted Docker
+socket proxy for Homepage. JDownloader, SearXNG, and Neko share `gluetun`'s
+network namespace, so their DNS and application traffic leave through that VPN
+tunnel. Caddy reaches their web interfaces through ports 5800, 8080, and 8081
+on `gluetun`; none of those HTTP ports is published directly on the LAN. Open
+WebUI joins the same namespace from the separate `ai` stack and listens on port
+3000.
 
-Gluetun's `FIREWALL_OUTBOUND_SUBNETS=192.168.50.125/32` is a narrow routing
-exception for DLBox. It lets Open WebUI call llama-swap while keeping Open
-WebUI's internet traffic inside the VPN. Because the exception is address-wide,
-Windows Firewall remains the port-level boundary. DLBox is a soft dependency:
-sleep, Docker Desktop downtime, Nord LAN blocking, or an address change makes
-inference unavailable without impairing Arc itself.
+Gluetun's `FIREWALL_OUTBOUND_SUBNETS=192.168.50.0/24` keeps both Blackwell
+inference and Neko's WebRTC return traffic on the Home LAN. This broader
+exception also allows every workload sharing Gluetun's namespace to initiate
+connections to LAN addresses, so application authentication and host
+firewalls remain important. Blackwell is a soft dependency: sleep, Docker
+Desktop downtime, Nord LAN blocking, or an address change makes inference
+unavailable without impairing Arc itself.
 
-Both namespace-sharing services wait for Gluetun's health check during an
-ordered Compose `up`, and `restart: true` restarts them when Gluetun is
+All three namespace-sharing General services wait for Gluetun's health check
+during an ordered Compose `up`, and `restart: true` restarts them when Gluetun is
 explicitly restarted through Compose. Still prefer `deploy-stack general`
 over `restart-stack general`: a whole-stack restart operates on existing
 containers and can briefly stop the network namespace before its dependents.
@@ -369,20 +372,30 @@ Persistent state is outside Git:
 /mnt/user/appdata/jdownloader-state
 /mnt/user/appdata/filebrowser
 /mnt/user/appdata/searxng-state
+/mnt/user/appdata/neko-state/profile
 /mnt/user/appdata/beszel-state
 /mnt/user/appdata/beszel-agent-state
 /mnt/user/appdata/termix-state
 ```
 
 The real `general/.env` contains the VPN credential plus generated SearXNG,
-JDownloader, and FileBrowser secrets. Keep it in encrypted backups and do not
-commit it. The real `ai/.env` contains Open WebUI's persistent secret key and
-has the same handling requirement. JDownloader writes downloads to
+JDownloader, FileBrowser, and Neko secrets. Keep it in encrypted backups and do
+not commit it. The real `ai/.env` contains Open WebUI's persistent secret key
+and has the same handling requirement. JDownloader writes downloads to
 `/mnt/user/booty/downloads` as
 Unraid's `nobody:users` account (`99:100`). FileBrowser maps the complete
 `/mnt/user/booty` share at `/files/stash`, exposes `/files` as its source root,
 and also runs as `99:100`. The UI therefore shows `stash` as a folder instead
 of opening directly into its contents.
+
+Neko uses the pinned Brave image and keeps its browser profile under
+`/mnt/user/appdata/neko-state/profile` as UID/GID `1000:1000`. Caddy terminates
+HTTPS and WebSocket signaling at `https://neko.arc.bonfireboogie.com`, while
+WebRTC media connects directly to Arc at TCP/UDP port `59000`. HTTP reverse
+proxies cannot carry that media path. The port is bound only to
+`192.168.50.51`; do not forward it from the WAN. LAN clients and remote clients
+using Arc's Tailscale subnet route can reach it. Browser internet egress still
+uses Proton through Gluetun.
 
 ### Shared media permissions
 
@@ -524,7 +537,7 @@ configured to use a dedicated dashboard account to show Arc's CPU, memory,
 disk, and network metrics. Store that account only as
 `HOMEPAGE_BESZEL_USERNAME` and `HOMEPAGE_BESZEL_PASSWORD` in the ignored
 `general/.env`; Homepage receives them through `HOMEPAGE_VAR_*` substitutions.
-The AI Lab section also links to llama-swap and Unsloth on DLBox. These entries
+The AI Lab section also links to llama-swap and Unsloth on Blackwell. These entries
 intentionally omit Arc Docker status fields because the containers run on a
 different Docker engine.
 

@@ -5,6 +5,11 @@ services:
     container_name: gluetun
     image: qmcgaw/gluetun:latest
     restart: unless-stopped
+    ports:
+      # Neko's HTTPS/WebSocket signaling is proxied through Caddy, but WebRTC
+      # media must reach Arc directly and cannot traverse an HTTP proxy.
+      - "192.168.50.51:59000:59000/udp"
+      - "192.168.50.51:59000:59000/tcp"
     cap_add:
       - NET_ADMIN
     devices:
@@ -15,10 +20,10 @@ services:
       WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY}
       SERVER_COUNTRIES: United States
       SERVER_CITIES: Los Angeles
-      FIREWALL_INPUT_PORTS: 3000,5800,8080
-      # Let Open WebUI reach DLBox inference without sending RFC1918 traffic
-      # into the VPN tunnel. Windows Firewall restricts the exposed ports.
-      FIREWALL_OUTBOUND_SUBNETS: 192.168.50.125/32
+      FIREWALL_INPUT_PORTS: 3000,5800,8080,8081,59000
+      # Keep Blackwell inference and Neko WebRTC return traffic on the Home LAN
+      # instead of sending RFC1918 traffic into the VPN tunnel.
+      FIREWALL_OUTBOUND_SUBNETS: 192.168.50.0/24
       TZ: ${TZ:-America/Los_Angeles}
     volumes:
       - /mnt/user/appdata/gluetun-state:/gluetun
@@ -69,6 +74,34 @@ services:
     volumes:
       - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
       - /mnt/user/appdata/searxng-state/cache:/var/cache/searxng
+
+  neko:
+    container_name: neko
+    image: ghcr.io/m1k1o/neko/brave@sha256:3c3d1c3fa607e15ddec357107f5c1843fa370b91a918e93045d072178ed60365
+    restart: unless-stopped
+    shm_size: 2gb
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+    network_mode: service:gluetun
+    environment:
+      # SearXNG already owns port 8080 in Gluetun's shared namespace.
+      NEKO_SERVER_BIND: 0.0.0.0:8081
+      NEKO_SERVER_PROXY: "true"
+      NEKO_DESKTOP_SCREEN: 1920x1080@30
+      NEKO_MEMBER_PROVIDER: multiuser
+      NEKO_MEMBER_MULTIUSER_USER_PASSWORD: ${NEKO_USER_PASSWORD:?Set NEKO_USER_PASSWORD in .env}
+      NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD: ${NEKO_ADMIN_PASSWORD:?Set NEKO_ADMIN_PASSWORD in .env}
+      # A single UDP/TCP mux port provides low-latency media plus a TCP
+      # fallback. It is reachable only on Arc's LAN/Tailscale-routed address.
+      NEKO_WEBRTC_UDPMUX: "59000"
+      NEKO_WEBRTC_TCPMUX: "59000"
+      NEKO_WEBRTC_NAT1TO1: 192.168.50.51
+      NEKO_WEBRTC_ICELITE: "true"
+      TZ: ${TZ:-America/Los_Angeles}
+    volumes:
+      - /mnt/user/appdata/neko-state/profile:/home/neko/.config/brave
 
   homepage:
     container_name: homepage

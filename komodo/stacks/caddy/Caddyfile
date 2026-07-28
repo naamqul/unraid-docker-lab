@@ -96,6 +96,11 @@ arc.bonfireboogie.com {
 		reverse_proxy gluetun:8080
 	}
 
+	@neko host neko.arc.bonfireboogie.com
+	handle @neko {
+		reverse_proxy gluetun:8081
+	}
+
 	@open_webui host open-webui.arc.bonfireboogie.com
 	handle @open_webui {
 		reverse_proxy gluetun:3000
@@ -106,13 +111,13 @@ arc.bonfireboogie.com {
 	}
 }
 
-# DLBox workloads run through Docker Desktop on the Windows workstation.
+# Blackwell workloads run through Docker Desktop on the Windows workstation.
 # Caddy is their only LAN-facing TLS entry point; the raw ports are restricted
 # to Arc and Caddy by Windows Firewall.
-*.dlbox.bonfireboogie.com {
+*.blackwell.bonfireboogie.com {
 	import public_dns_tls
 
-	@llama_swap host llama-swap.dlbox.bonfireboogie.com
+	@llama_swap host llama-swap.blackwell.bonfireboogie.com
 	handle @llama_swap {
 		reverse_proxy 192.168.50.125:9292 {
 			# Streaming inference responses must be flushed immediately.
@@ -120,7 +125,7 @@ arc.bonfireboogie.com {
 		}
 	}
 
-	@unsloth host unsloth.dlbox.bonfireboogie.com
+	@unsloth host unsloth.blackwell.bonfireboogie.com
 	handle @unsloth {
 		reverse_proxy 192.168.50.125:8188
 	}
