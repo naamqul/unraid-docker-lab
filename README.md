@@ -145,6 +145,8 @@ The primary, publicly trusted names are:
 | `searxng.arc.bonfireboogie.com` | `gluetun:8080` |
 | `open-webui.arc.bonfireboogie.com` | Open WebUI through shared VPN namespace (`gluetun:3000`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
+| `llama-swap.dlbox.bonfireboogie.com` | DLBox workstation at `192.168.50.125:9292` |
+| `unsloth.dlbox.bonfireboogie.com` | DLBox workstation at `192.168.50.125:8188` |
 
 The prior `.arc.home.arpa` Caddy handlers remain as dormant migration aliases.
 Their NextDNS rewrites were removed, so they resolve only on a client with an
@@ -165,6 +167,7 @@ unreliable across operating systems and Tailscale.
    ```text
    arc.bonfireboogie.com    A  192.168.50.52
    *.arc.bonfireboogie.com  A  192.168.50.52
+   *.dlbox.bonfireboogie.com A 192.168.50.52
    ```
 
    Publishing an RFC1918 address reveals the internal Caddy address but does
@@ -286,6 +289,12 @@ expressed with Compose `depends_on`: deploy `general` before `ai`, and redeploy
 `ai` whenever the Gluetun container is recreated. A simple Gluetun restart
 preserves the namespace and does not require that follow-up.
 
+External workstation services use their own wildcard site. The
+`*.dlbox.bonfireboogie.com` block proxies only explicitly matched hostnames to
+the reserved DLBox address `192.168.50.125`. Windows Firewall permits the raw
+ports only from Arc (`192.168.50.51`) and Caddy (`192.168.50.52`); no WAN port
+forward is used.
+
 ## Komodo stack ownership
 
 Periphery monitoring makes every Docker container visible under Arc, but it
@@ -324,6 +333,12 @@ Forge also has a **Files on host** stack named `forge-observability`, on server
 runs an outbound-only Beszel agent plus a GET-filtered Docker socket proxy; no
 inbound Forge port is required.
 
+The Windows workstation is represented by the Komodo server `DLBox`. Its
+Periphery bootstrap and independent inference Compose files live in the
+separate `naamqul/dlbox-docker-lab` repository. Multiple Komodo Stack resources
+can point to different Compose files in that one repository; a repository per
+service is unnecessary.
+
 ## General services
 
 The `general` stack contains Gluetun, Homepage, Beszel Hub, FileBrowser Quantum,
@@ -333,6 +348,13 @@ DNS and application traffic leave through that VPN tunnel. Caddy reaches their
 web interfaces through ports 5800 and 8080 on `gluetun`; neither port is
 published directly on the LAN. Open WebUI joins the same namespace from the
 separate `ai` stack and listens on port 3000.
+
+Gluetun's `FIREWALL_OUTBOUND_SUBNETS=192.168.50.125/32` is a narrow routing
+exception for DLBox. It lets Open WebUI call llama-swap while keeping Open
+WebUI's internet traffic inside the VPN. Because the exception is address-wide,
+Windows Firewall remains the port-level boundary. DLBox is a soft dependency:
+sleep, Docker Desktop downtime, Nord LAN blocking, or an address change makes
+inference unavailable without impairing Arc itself.
 
 Both namespace-sharing services wait for Gluetun's health check during an
 ordered Compose `up`, and `restart: true` restarts them when Gluetun is
@@ -502,6 +524,9 @@ configured to use a dedicated dashboard account to show Arc's CPU, memory,
 disk, and network metrics. Store that account only as
 `HOMEPAGE_BESZEL_USERNAME` and `HOMEPAGE_BESZEL_PASSWORD` in the ignored
 `general/.env`; Homepage receives them through `HOMEPAGE_VAR_*` substitutions.
+The AI Lab section also links to llama-swap and Unsloth on DLBox. These entries
+intentionally omit Arc Docker status fields because the containers run on a
+different Docker engine.
 
 ## Jellyfin
 

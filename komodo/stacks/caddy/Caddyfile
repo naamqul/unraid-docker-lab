@@ -106,6 +106,30 @@ arc.bonfireboogie.com {
 	}
 }
 
+# DLBox workloads run through Docker Desktop on the Windows workstation.
+# Caddy is their only LAN-facing TLS entry point; the raw ports are restricted
+# to Arc and Caddy by Windows Firewall.
+*.dlbox.bonfireboogie.com {
+	import public_dns_tls
+
+	@llama_swap host llama-swap.dlbox.bonfireboogie.com
+	handle @llama_swap {
+		reverse_proxy 192.168.50.125:9292 {
+			# Streaming inference responses must be flushed immediately.
+			flush_interval -1
+		}
+	}
+
+	@unsloth host unsloth.dlbox.bonfireboogie.com
+	handle @unsloth {
+		reverse_proxy 192.168.50.125:8188
+	}
+
+	handle {
+		abort
+	}
+}
+
 # Retain the original home.arpa handlers as dormant migration aliases. Their
 # DNS rewrites are gone, so they resolve only with an explicit client mapping.
 # They still use Caddy's private CA when deliberately addressed.

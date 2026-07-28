@@ -16,6 +16,9 @@ services:
       SERVER_COUNTRIES: United States
       SERVER_CITIES: Los Angeles
       FIREWALL_INPUT_PORTS: 3000,5800,8080
+      # Let Open WebUI reach DLBox inference without sending RFC1918 traffic
+      # into the VPN tunnel. Windows Firewall restricts the exposed ports.
+      FIREWALL_OUTBOUND_SUBNETS: 192.168.50.125/32
       TZ: ${TZ:-America/Los_Angeles}
     volumes:
       - /mnt/user/appdata/gluetun-state:/gluetun

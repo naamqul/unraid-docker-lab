@@ -74,6 +74,14 @@
         description: Model and AI workspace through the shared VPN
         server: arc-docker
         container: open-webui
+    - Llama Swap:
+        icon: mdi-swap-horizontal-bold
+        href: https://llama-swap.dlbox.bonfireboogie.com
+        description: RTX 5090 inference router on DLBox
+    - Unsloth Studio:
+        icon: mdi-brain
+        href: https://unsloth.dlbox.bonfireboogie.com
+        description: Fine-tuning workspace on DLBox
     - Caddy:
         icon: caddy.svg
         href: https://caddy.arc.bonfireboogie.com
