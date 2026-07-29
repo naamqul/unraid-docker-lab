@@ -123,6 +123,100 @@ prevents an agent from replacing root-owned top-level control entries while
 preserving group collaboration. `/workspace/.system/beszel` is a root-only
 mount marker used solely to report workspace filesystem metrics.
 
+## Arc agent access tooling
+
+Arc executes the access helpers directly from this repository. There is no
+separate installed copy to reconcile:
+
+| Tracked source | Arc live path | Role |
+| --- | --- | --- |
+| `forge/unraid-readonly-wrapper.sh` | `/mnt/user/appdata/unraid-docker-lab/forge/unraid-readonly-wrapper.sh` | Standing forced-command diagnostic allowlist. |
+| `forge/authorize-unraid-agent-key.sh` | `/mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh` | Installs or rotates only the source-restricted read-only key. |
+| `forge/manage-unraid-agent-root.sh` | `/mnt/user/appdata/unraid-docker-lab/forge/manage-unraid-agent-root.sh` | Grants, reports, or revokes the separate expiring root key. |
+
+The machine-readable copy of this mapping is
+`forge/unraid-agent-access.map`. All three live files must be regular,
+root-owned, mode-`0755` files whose bytes match their tracked sources.
+
+Run the non-mutating verifier on Arc after a checkout update or access change:
+
+```bash
+cd /mnt/user/appdata/unraid-docker-lab
+forge/verify-unraid-agent-access.sh --live
+```
+
+For CI or a non-Arc checkout:
+
+```bash
+forge/verify-unraid-agent-access.sh --source-only
+```
+
+The live check validates the source/live mapping, Git executable modes, Bash
+syntax, the standing key's exact source restriction and forced command,
+temporary-root expiry restrictions when a grant exists, and audit-log
+permissions. It never invokes the root manager, changes `authorized_keys`, or
+prints public-key bodies. If ShellCheck is installed it runs automatically;
+ShellCheck remains a required pre-merge check when the runtime reports it
+missing.
+
+The normal state is one standing read-only key and no
+`forge-agent-unraid-root` entry. The separate root private key may remain
+staged on Forge, but it has no authority until an explicitly approved,
+source-restricted, expiring public-key entry is installed by
+`manage-unraid-agent-root.sh`. Never replace that lifecycle with an
+unrestricted or permanent entry. Standing agent access does not expose QEMU
+Guest Agent execution, arbitrary `virsh`, an interactive root shell, or an
+equivalent host-control path; those remain behind a separately approved,
+time-bounded root grant.
+
+### Clean Docker restart environment
+
+Do not restart Unraid Docker directly from an arbitrary SSH login environment.
+A prior SSH-initiated restart passed
+`XDG_RUNTIME_DIR=/run/user/0` and `DBUS_SESSION_BUS_ADDRESS` into `dockerd` and
+`containerd`. When that login runtime disappeared, health checks and
+`docker exec` failed even though the daemons were still present.
+
+The tracked root-only helper runs Arc's stock restart script with those two
+variables removed:
+
+```bash
+cd /mnt/user/appdata/unraid-docker-lab
+forge/restart-unraid-docker-clean-env.sh \
+  restart all-containers-will-restart
+```
+
+This is disruptive: every container stops and restarts. Schedule downtime,
+capture `docker ps` first, and confirm the VPN-dependent workloads can wait for
+Gluetun to become healthy. The helper executes the equivalent of:
+
+```bash
+/usr/bin/env \
+  -u XDG_RUNTIME_DIR \
+  -u DBUS_SESSION_BUS_ADDRESS \
+  /etc/rc.d/rc.docker restart
+```
+
+It then requires both `dockerd` and `containerd` to omit those variables and
+checks that `docker info` and `docker ps` succeed. It does not patch
+`/etc/rc.d/rc.docker`, install an environment file, or change boot
+configuration.
+
+After the daemon-level check, perform dependency-aware recovery validation:
+
+1. wait for Gluetun to report healthy before judging SearXNG, jDownloader,
+   Neko, or other namespace-sharing dependents;
+2. confirm the registered Komodo stacks and expected containers are running;
+3. check Caddy and the externally used service URLs;
+4. check Beszel telemetry and a representative Jellyfin playback probe;
+5. inspect `docker ps` for unhealthy or restart-looping containers.
+
+Rollback is operational rather than file-based because the helper persists no
+daemon configuration. If recovery fails, use the Unraid console to inspect
+Docker logs and run the same stock restart from a clean root environment, or
+reboot Arc during the approved outage. Reverting this helper removes only the
+guarded launcher; never modify the stock `rc.docker` script to compensate.
+
 ## Rebuild artifacts
 
 - `Forge.xml` is the secret-free replacement definition. It includes stock
