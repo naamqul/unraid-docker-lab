@@ -125,25 +125,27 @@ mount marker used solely to report workspace filesystem metrics.
 
 ## Arc agent access tooling
 
-Arc executes the access helpers directly from this repository. There is no
-separate installed copy to reconcile:
+The Git checkout under `/mnt/user/appdata` is a development source, not a
+trusted root execution path. Its `/mnt/user` and `/mnt/user/appdata`
+ancestors are mode `0777`, so a root SSH forced command must never execute
+repository bytes there.
 
-| Tracked source | Arc live path | Role |
+Reviewed sources are snapshotted once, checked against an independently
+supplied manifest digest, and atomically installed under the dedicated
+root-controlled directory `/boot/config/custom/forge-agent-access`:
+
+| Tracked source | Protected Arc path | Role |
 | --- | --- | --- |
-| `forge/unraid-readonly-wrapper.sh` | `/mnt/user/appdata/unraid-docker-lab/forge/unraid-readonly-wrapper.sh` | Standing forced-command diagnostic allowlist. |
-| `forge/authorize-unraid-agent-key.sh` | `/mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh` | Installs or rotates only the source-restricted read-only key. |
-| `forge/manage-unraid-agent-root.sh` | `/mnt/user/appdata/unraid-docker-lab/forge/manage-unraid-agent-root.sh` | Grants, reports, or revokes the separate expiring root key. |
+| `forge/unraid-readonly-wrapper.sh` | `/boot/config/custom/forge-agent-access/forge/unraid-readonly-wrapper.sh` | Standing forced-command diagnostic allowlist. |
+| `forge/authorize-unraid-agent-key.sh` | `/boot/config/custom/forge-agent-access/forge/authorize-unraid-agent-key.sh` | Installs or rotates only the source-restricted read-only key. |
+| `forge/manage-unraid-agent-root.sh` | `/boot/config/custom/forge-agent-access/forge/manage-unraid-agent-root.sh` | Grants, reports, or revokes the separate expiring root key. |
 
 The machine-readable copy of this mapping is
-`forge/unraid-agent-access.map`. All three live files must be regular,
-root-owned, mode-`0755` files whose bytes match their tracked sources.
-
-Run the non-mutating verifier on Arc after a checkout update or access change:
-
-```bash
-cd /mnt/user/appdata/unraid-docker-lab
-forge/verify-unraid-agent-access.sh --live
-```
+`forge/unraid-agent-access.map`; the map itself is included in
+`forge/unraid-agent-access.sha256`. Protected scripts are regular,
+root-owned, mode-`0500` files. The verifier rejects symlinks, non-root
+ownership, group/world-writable ancestry, missing manifest pins, and byte
+drift.
 
 For CI or a non-Arc checkout:
 
@@ -151,19 +153,72 @@ For CI or a non-Arc checkout:
 forge/verify-unraid-agent-access.sh --source-only
 ```
 
-The live check validates the source/live mapping, Git executable modes, Bash
-syntax, the standing key's exact source restriction and forced command,
-temporary-root expiry restrictions when a grant exists, and audit-log
-permissions. It never invokes the root manager, changes `authorized_keys`, or
-prints public-key bodies. If ShellCheck is installed it runs automatically;
-ShellCheck remains a required pre-merge check when the runtime reports it
-missing.
+After a protected bundle has been installed, run the non-mutating live
+verifier only from that bundle:
+
+```bash
+/boot/config/custom/forge-agent-access/forge/verify-unraid-agent-access.sh \
+  --live
+```
+
+The live check shares the updater lock and validates protected ancestry,
+manifest pins, the map, exact forced-command path, temporary-root expiry, and
+audit-log permissions. It never invokes the access managers, changes
+`authorized_keys`, or prints key bodies.
+
+### Protected update trust flow
+
+`forge/update-unraid-agent-access.sh` must not be executed from the repository.
+For initial bootstrap, an administrator copies it once to a root-only
+temporary path, verifies that snapshot against a SHA-256 value obtained from
+the reviewed GitHub commit rather than from Arc's checkout, and invokes the
+verified snapshot with:
+
+```bash
+FORGE_AGENT_ACCESS_BOOTSTRAP=1 /root/update-unraid-agent-access.verified \
+  update /mnt/user/appdata/unraid-docker-lab \
+  FULL_REVIEWED_COMMIT_ID INDEPENDENT_MANIFEST_SHA256
+```
+
+The updater snapshots each listed source into a root-only staging directory,
+then validates the independently pinned manifest and all seven content hashes
+before any protected file changes. It uses a root-only exclusive lock and
+atomic per-file replacement; the updater and manifest are replaced last.
+It also records the reviewed commit and independent manifest digest in the
+root-only `source.pin`; the live verifier recomputes and compares that pin.
+Later updates run only the already protected updater:
+
+```bash
+/boot/config/custom/forge-agent-access/forge/update-unraid-agent-access.sh \
+  update /mnt/user/appdata/unraid-docker-lab \
+  FULL_REVIEWED_COMMIT_ID INDEPENDENT_MANIFEST_SHA256
+```
+
+The commit check records provenance, while the independently obtained
+manifest digest is the integrity pin: the Git metadata and files beneath
+`/mnt/user` are not trusted. `/boot` is a ZFS mount and `/boot` plus
+`/boot/config` are root-owned mode `0700`; the dedicated bundle is also
+`0700`. The cold backup already archives `/boot/config` with ownership and
+xattrs and runs weekly restore tests. That backup is same-host and unencrypted,
+however, and is a recovery copy rather than an independent integrity anchor.
+Neither this boundary nor its hashes defend against Arc root, root-equivalent
+Komodo/Docker control, physical/offline modification, or compromise of the
+independent review channel.
+
+Current Arc state (audited 2026-07-29) is **not live-verified** and must not be
+described as such. The standing entry still executes the wrapper through the
+replaceable `/mnt/user/appdata` path, the protected bundle/cutover has not been
+installed, and an unmanaged `forge-codex-readonly` legacy entry remains.
+This source-only work intentionally does not remove, rewrite, or add any live
+authorization. An administrator must install and verify the protected bundle,
+remove the unmanaged legacy entry explicitly, rotate the marked entry through
+the protected authorizer, and rerun `--live`.
 
 The normal state is one standing read-only key and no
 `forge-agent-unraid-root` entry. The separate root private key may remain
 staged on Forge, but it has no authority until an explicitly approved,
 source-restricted, expiring public-key entry is installed by
-`manage-unraid-agent-root.sh`. Never replace that lifecycle with an
+the protected `manage-unraid-agent-root.sh`. Never replace that lifecycle with an
 unrestricted or permanent entry. Standing agent access does not expose QEMU
 Guest Agent execution, arbitrary `virsh`, an interactive root shell, or an
 equivalent host-control path; those remain behind a separately approved,
@@ -177,12 +232,11 @@ A prior SSH-initiated restart passed
 `containerd`. When that login runtime disappeared, health checks and
 `docker exec` failed even though the daemons were still present.
 
-The tracked root-only helper runs Arc's stock restart script with those two
+The protected root-only helper runs Arc's stock restart script with those two
 variables removed:
 
 ```bash
-cd /mnt/user/appdata/unraid-docker-lab
-forge/restart-unraid-docker-clean-env.sh \
+/boot/config/custom/forge-agent-access/forge/restart-unraid-docker-clean-env.sh \
   restart all-containers-will-restart
 ```
 
@@ -197,10 +251,11 @@ Gluetun to become healthy. The helper executes the equivalent of:
   /etc/rc.d/rc.docker restart
 ```
 
-It then requires both `dockerd` and `containerd` to omit those variables and
-checks that `docker info` and `docker ps` succeed. It does not patch
-`/etc/rc.d/rc.docker`, install an environment file, or change boot
-configuration.
+It then requires `dockerd`, `containerd`, and every
+`containerd-shim-runc-v2` process to omit those variables, because the shims
+directly invoke `runc`. It also checks that `docker info` and `docker ps`
+succeed. It does not patch `/etc/rc.d/rc.docker`, install an environment file,
+or change boot configuration.
 
 After the daemon-level check, perform dependency-aware recovery validation:
 
@@ -239,14 +294,19 @@ guarded launcher; never modify the stock `rc.docker` script to compensate.
   `2.2.0` binaries; configures outbound-only Periphery and the restricted
   shared-agent integrations; stages observability files; and removes one-time
   Komodo credentials after use.
-- `unraid-readonly-wrapper.sh` is installed on Arc at the same path as this
-  repository copy and is the allowlist behind the Forge-to-Unraid SSH key.
-- `authorize-unraid-agent-key.sh` runs on Arc and atomically installs that
+- `unraid-readonly-wrapper.sh` is installed only in Arc's protected
+  `/boot/config/custom/forge-agent-access` bundle and is the allowlist behind
+  the Forge-to-Unraid SSH key.
+- `update-unraid-agent-access.sh`, its SHA-256 manifest, and the access map
+  provide the independently pinned source-to-protected update flow.
+- The protected `authorize-unraid-agent-key.sh` atomically installs that
   public key with the source-IP, `restrict`, and forced-command controls. It
-  refuses a writable wrapper, unsafe input file, or conflicting prior key.
-- `manage-unraid-agent-root.sh` grants, reports, and revokes the separate
+  snapshots its root-owned input key once and refuses a writable wrapper,
+  unsafe ancestry, unmanaged legacy entry, or conflicting/duplicate key.
+- The protected `manage-unraid-agent-root.sh` grants, reports, and revokes the separate
   source-restricted root key with a maximum eight-hour OpenSSH expiry and a
-  persistent root-only audit log.
+  persistent root-only audit log. Both authorization helpers share an
+  exclusive lock around `authorized_keys`.
 - `stacks/forge-observability` contains the outbound Beszel agent, a
   GET-filtered Docker proxy exposed only as a root-only Unix socket, and the
   hidden-prompt enrollment helper.
@@ -362,11 +422,11 @@ For a clean rebuild, replay the tracked integration flow as follows:
 
    ```bash
     # First installation:
-    /mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh \
+    /boot/config/custom/forge-agent-access/forge/authorize-unraid-agent-key.sh \
       /tmp/forge-agent-unraid-readonly.pub
 
     # Replacement guest with the prior marked entry still present:
-    /mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh \
+    /boot/config/custom/forge-agent-access/forge/authorize-unraid-agent-key.sh \
       --rotate /tmp/forge-agent-unraid-readonly.pub
    ```
 
@@ -381,11 +441,11 @@ For a clean rebuild, replay the tracked integration flow as follows:
    audited helper:
 
    ```bash
-   forge/manage-unraid-agent-root.sh grant \
+   /boot/config/custom/forge-agent-access/forge/manage-unraid-agent-root.sh grant \
      /tmp/forge-agent-unraid-root.pub 60 issue-123 \
      "Exact approved maintenance reason"
-   forge/manage-unraid-agent-root.sh status
-   forge/manage-unraid-agent-root.sh revoke \
+   /boot/config/custom/forge-agent-access/forge/manage-unraid-agent-root.sh status
+   /boot/config/custom/forge-agent-access/forge/manage-unraid-agent-root.sh revoke \
      issue-123 "Maintenance complete"
    ```
 

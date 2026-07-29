@@ -1,0 +1,7 @@
+fd18d2d5cc0570bb616625209cdc146234ac34a6f5f9f21d5ec4be42a643fd7a  forge/authorize-unraid-agent-key.sh
+7d49e045cc6b69580804840c7dd68f3c4f35a2ded887abefa3fd54ce437038ab  forge/manage-unraid-agent-root.sh
+db547e64facfad3d73d70a12832035a26724be03bceb784c6e29a1dc2a17d148  forge/restart-unraid-docker-clean-env.sh
+bf519e44445150807cda6fb457fca2b32fbb1f166a5cdb0ac5555c1a411ffa59  forge/unraid-agent-access.map
+c6b1201293e0ede1059166badc6e83d127cacad83cf78bca32a8588d4d34f330  forge/unraid-readonly-wrapper.sh
+8ea9f3fb10ad45880c80fd00dde31bbddb6ae43be79d8833a55c18e0aab761eb  forge/update-unraid-agent-access.sh
+138e9d15d1526f804eeb99e69c3eb617c21773ffe036b6065cce4a07846c7d94  forge/verify-unraid-agent-access.sh

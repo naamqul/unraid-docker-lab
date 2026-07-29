@@ -1,4 +1,4 @@
-# source_path	live_path	owner	mode	role
-forge/unraid-readonly-wrapper.sh	/mnt/user/appdata/unraid-docker-lab/forge/unraid-readonly-wrapper.sh	root:root	755	standing forced-command diagnostic wrapper
-forge/authorize-unraid-agent-key.sh	/mnt/user/appdata/unraid-docker-lab/forge/authorize-unraid-agent-key.sh	root:root	755	standing read-only key installer and rotation helper
-forge/manage-unraid-agent-root.sh	/mnt/user/appdata/unraid-docker-lab/forge/manage-unraid-agent-root.sh	root:root	755	temporary expiring root-grant lifecycle helper
+# source_path	protected_path	owner	mode	role
+forge/unraid-readonly-wrapper.sh	/boot/config/custom/forge-agent-access/forge/unraid-readonly-wrapper.sh	root:root	500	standing forced-command diagnostic wrapper
+forge/authorize-unraid-agent-key.sh	/boot/config/custom/forge-agent-access/forge/authorize-unraid-agent-key.sh	root:root	500	standing read-only key installer and rotation helper
+forge/manage-unraid-agent-root.sh	/boot/config/custom/forge-agent-access/forge/manage-unraid-agent-root.sh	root:root	500	temporary expiring root-grant lifecycle helper

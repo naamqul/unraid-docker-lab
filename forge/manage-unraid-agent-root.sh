@@ -1,15 +1,20 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash
 set -Eeuo pipefail
 
-: "${FORGE_IP:=192.168.50.179}"
-: "${MAX_MINUTES:=480}"
-: "${AUTHORIZED:=/boot/config/ssh/root/authorized_keys}"
-: "${AUDIT_LOG:=/boot/config/ssh/root/forge-agent-root-access.log}"
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+umask 077
 
-MARKER=forge-agent-unraid-root
+readonly FORGE_IP=192.168.50.179
+readonly MAX_MINUTES=480
+readonly AUTHORIZED=/boot/config/ssh/root/authorized_keys
+readonly AUDIT_LOG=/boot/config/ssh/root/forge-agent-root-access.log
+readonly EXPECTED_SELF=/boot/config/custom/forge-agent-access/forge/manage-unraid-agent-root.sh
+
+readonly MARKER=forge-agent-unraid-root
+readonly AUTHORIZED_LOCK="${AUTHORIZED}.forge-agent.lock"
 
 usage() {
-  cat >&2 <<'EOF'
+  /usr/bin/cat >&2 <<'EOF'
 Usage:
   manage-unraid-agent-root.sh grant PUBLIC_KEY MINUTES TASK_ID REASON
   manage-unraid-agent-root.sh revoke TASK_ID REASON
@@ -26,13 +31,126 @@ EOF
   exit 1
 }
 
+validate_root_file() {
+  local path=$1
+  [[ -f "${path}" && ! -L "${path}" ]] || {
+    echo "Missing or unsafe regular file: ${path}" >&2
+    exit 1
+  }
+  [[ "$(/usr/bin/stat -c '%U' "${path}")" == root ]] || {
+    echo "File must be owned by root: ${path}" >&2
+    exit 1
+  }
+  local mode
+  mode="$(/usr/bin/stat -c '%a' "${path}")"
+  (( (8#${mode} & 8#022) == 0 )) || {
+    echo "File must not be writable by group/other: ${path}" >&2
+    exit 1
+  }
+}
+
+assert_safe_chain() {
+  local requested=$1
+  local current=/
+  local component owner mode normalized
+  normalized="$(/usr/bin/readlink -m -- "${requested}")"
+  [[ "${normalized}" == "${requested}" ]] || {
+    echo "Path is not normalized: ${requested}" >&2
+    exit 1
+  }
+  IFS=/ read -r -a components <<<"${requested#/}"
+  for component in "${components[@]}"; do
+    [[ -n "${component}" ]] || continue
+    current="${current%/}/${component}"
+    [[ -e "${current}" && ! -L "${current}" ]] || {
+      echo "Missing or symlinked protected path: ${current}" >&2
+      exit 1
+    }
+    owner="$(/usr/bin/stat -Lc '%U:%G' "${current}")"
+    mode="$(/usr/bin/stat -Lc '%a' "${current}")"
+    [[ "${owner}" == root:root ]] || {
+      echo "Non-root owner in protected path: ${current}" >&2
+      exit 1
+    }
+    (( (8#${mode} & 8#022) == 0 )) || {
+      echo "Group/world-writable protected path: ${current}" >&2
+      exit 1
+    }
+  done
+}
+
+snapshot_public_key() {
+  local source=$1
+  local snapshot=$2
+  local source_fd source_identity opened_identity final_identity
+  local opened_owner opened_mode
+
+  validate_root_file "${source}"
+  exec {source_fd}<"${source}"
+  source_identity="$(/usr/bin/stat -Lc '%d:%i' "${source}")"
+  opened_identity="$(
+    /usr/bin/stat -Lc '%d:%i' "/proc/self/fd/${source_fd}"
+  )"
+  opened_owner="$(
+    /usr/bin/stat -Lc '%U' "/proc/self/fd/${source_fd}"
+  )"
+  opened_mode="$(
+    /usr/bin/stat -Lc '%a' "/proc/self/fd/${source_fd}"
+  )"
+  [[ "${source_identity}" == "${opened_identity}" &&
+     "${opened_owner}" == root &&
+     ! -L "${source}" ]] || {
+    echo "Public-key file changed while it was being opened." >&2
+    exit 1
+  }
+  (( (8#${opened_mode} & 8#022) == 0 )) || {
+    echo "Opened public-key file is group/world writable." >&2
+    exit 1
+  }
+
+  /usr/bin/cat <&"${source_fd}" >"${snapshot}"
+  final_identity="$(/usr/bin/stat -Lc '%d:%i' "${source}")"
+  exec {source_fd}<&-
+  [[ "${source_identity}" == "${final_identity}" &&
+     ! -L "${source}" ]] || {
+    echo "Public-key file changed while it was being snapshotted." >&2
+    exit 1
+  }
+  /usr/bin/chown root:root "${snapshot}"
+  /usr/bin/chmod 0600 "${snapshot}"
+}
+
+invoked_path="$(/usr/bin/readlink -m -- "${BASH_SOURCE[0]}")"
+[[ "${invoked_path}" == "${EXPECTED_SELF}" &&
+   ! -L "${EXPECTED_SELF}" ]] || {
+  echo "Run only the protected helper: ${EXPECTED_SELF}" >&2
+  exit 1
+}
+assert_safe_chain "${EXPECTED_SELF}"
+assert_safe_chain "$(/usr/bin/dirname "${AUTHORIZED}")"
+
 action="${1:-}"
 shift || true
 
-install -d -o root -g root -m 0700 "$(dirname "${AUTHORIZED}")"
-touch "${AUTHORIZED}" "${AUDIT_LOG}"
-chown root:root "${AUTHORIZED}" "${AUDIT_LOG}"
-chmod 0600 "${AUTHORIZED}" "${AUDIT_LOG}"
+/usr/bin/install -d -o root -g root -m 0700 \
+  "$(/usr/bin/dirname "${AUTHORIZED}")"
+for protected_state in "${AUTHORIZED}" "${AUDIT_LOG}"; do
+  if [[ -e "${protected_state}" || -L "${protected_state}" ]]; then
+    validate_root_file "${protected_state}"
+  fi
+done
+if [[ -e "${AUTHORIZED_LOCK}" ]]; then
+  validate_root_file "${AUTHORIZED_LOCK}"
+else
+  ( umask 077; set -o noclobber; : >"${AUTHORIZED_LOCK}" ) 2>/dev/null || true
+  validate_root_file "${AUTHORIZED_LOCK}"
+fi
+exec {authorized_lock_fd}<>"${AUTHORIZED_LOCK}"
+/usr/bin/flock -x "${authorized_lock_fd}"
+
+/usr/bin/touch "${AUTHORIZED}" "${AUDIT_LOG}"
+/usr/bin/chown root:root "${AUTHORIZED}" "${AUDIT_LOG}"
+/usr/bin/chmod 0600 "${AUTHORIZED}" "${AUDIT_LOG}"
 
 log_event() {
   local event=$1
@@ -42,20 +160,21 @@ log_event() {
   local reason=$5
 
   printf '%s event=%s fingerprint=%s source=%s expiry=%s task=%q reason=%q\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    "$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)" \
     "${event}" "${fingerprint}" "${FORGE_IP}" "${expiry}" \
     "${task_id}" "${reason}" >>"${AUDIT_LOG}"
-  logger -t forge-agent-root \
+  /usr/bin/logger -t forge-agent-root \
     "event=${event} fingerprint=${fingerprint} source=${FORGE_IP} expiry=${expiry} task=${task_id}"
 }
 
 remove_marked_entries() {
   local temporary
-  temporary="$(mktemp "${AUTHORIZED}.XXXXXX")"
-  grep -Ev " ${MARKER}$" "${AUTHORIZED}" >"${temporary}" || true
-  chown root:root "${temporary}"
-  chmod 0600 "${temporary}"
-  mv -f -- "${temporary}" "${AUTHORIZED}"
+  temporary="$(/usr/bin/mktemp "${AUTHORIZED}.XXXXXX")"
+  /usr/bin/grep -Ev " ${MARKER}$" \
+    "${AUTHORIZED}" >"${temporary}" || true
+  /usr/bin/chown root:root "${temporary}"
+  /usr/bin/chmod 0600 "${temporary}"
+  /usr/bin/mv -f -- "${temporary}" "${AUTHORIZED}"
 }
 
 case "${action}" in
@@ -79,16 +198,23 @@ case "${action}" in
       echo "REASON must be a non-empty single line." >&2
       exit 2
     }
-    [[ -f "${pubkey_file}" && ! -L "${pubkey_file}" ]]
-    [[ "$(grep -cve '^[[:space:]]*$' "${pubkey_file}")" -eq 1 ]]
-    read -r key_type key_body key_comment <"${pubkey_file}"
+    key_snapshot="$(/usr/bin/mktemp /tmp/forge-agent-root-key.XXXXXX)"
+    trap '/usr/bin/rm -f -- "${key_snapshot}"' EXIT
+    snapshot_public_key "${pubkey_file}" "${key_snapshot}"
+
+    [[ "$(/usr/bin/grep -cve '^[[:space:]]*$' "${key_snapshot}")" -eq 1 ]]
+    read -r key_type key_body key_comment <"${key_snapshot}"
     [[ "${key_type}" == ssh-ed25519 ]]
     [[ "${key_body}" =~ ^[A-Za-z0-9+/=]+$ ]]
     [[ "${key_comment}" == "${MARKER}" ]]
 
-    fingerprint="$(ssh-keygen -lf "${pubkey_file}" | awk '{print $2}')"
+    fingerprint="$(
+      /usr/bin/ssh-keygen -lf "${key_snapshot}" |
+        /usr/bin/awk '{print $2}'
+    )"
+    [[ "${fingerprint}" == SHA256:* ]]
     expiry="$(
-      date -u -d "+${minutes} minutes" +%Y%m%d%H%M%SZ
+      /usr/bin/date -u -d "+${minutes} minutes" +%Y%m%d%H%M%SZ
     )"
     entry='from="'"${FORGE_IP}"'",restrict,expiry-time="'"${expiry}"'" ssh-ed25519 '"${key_body}"' '"${MARKER}"
 
@@ -96,6 +222,8 @@ case "${action}" in
     [[ ! -s "${AUTHORIZED}" ]] || printf '\n' >>"${AUTHORIZED}"
     printf '%s\n' "${entry}" >>"${AUTHORIZED}"
     log_event grant "${fingerprint}" "${expiry}" "${task_id}" "${reason}"
+    /usr/bin/rm -f -- "${key_snapshot}"
+    trap - EXIT
     printf 'Granted %s until %s UTC for %s.\n' \
       "${fingerprint}" "${expiry}" "${task_id}"
     ;;
@@ -107,16 +235,25 @@ case "${action}" in
     [[ "${task_id}" =~ ^[A-Za-z0-9._:/#-]+$ ]] || usage
     [[ -n "${reason}" && "${reason}" != *$'\n'* ]] || usage
 
-    current_entry="$(grep -E " ${MARKER}$" "${AUTHORIZED}" || true)"
+    current_entry="$(
+      /usr/bin/grep -E " ${MARKER}$" "${AUTHORIZED}" || true
+    )"
     if [[ -n "${current_entry}" ]]; then
-      key_type="$(awk '{print $(NF-2)}' <<<"${current_entry}")"
-      key_body="$(awk '{print $(NF-1)}' <<<"${current_entry}")"
-      key_file="$(mktemp /tmp/forge-agent-root-key.XXXXXX)"
-      trap 'rm -f -- "${key_file}"' EXIT
+      key_type="$(
+        /usr/bin/awk '{print $(NF-2)}' <<<"${current_entry}"
+      )"
+      key_body="$(
+        /usr/bin/awk '{print $(NF-1)}' <<<"${current_entry}"
+      )"
+      key_file="$(/usr/bin/mktemp /tmp/forge-agent-root-key.XXXXXX)"
+      trap '/usr/bin/rm -f -- "${key_file}"' EXIT
       printf '%s %s %s\n' \
         "${key_type}" "${key_body}" "${MARKER}" >"${key_file}"
-      fingerprint="$(ssh-keygen -lf "${key_file}" | awk '{print $2}')"
-      rm -f -- "${key_file}"
+      fingerprint="$(
+        /usr/bin/ssh-keygen -lf "${key_file}" |
+          /usr/bin/awk '{print $2}'
+      )"
+      /usr/bin/rm -f -- "${key_file}"
       trap - EXIT
     else
       fingerprint=none
@@ -129,9 +266,10 @@ case "${action}" in
 
   status)
     [[ $# -eq 0 ]] || usage
-    if grep -qE " ${MARKER}$" "${AUTHORIZED}"; then
-      grep -E " ${MARKER}$" "${AUTHORIZED}" |
-        sed -E 's/(ssh-ed25519 )[A-Za-z0-9+/=]+/\1<redacted>/'
+    if /usr/bin/grep -qE " ${MARKER}$" "${AUTHORIZED}"; then
+      /usr/bin/grep -E " ${MARKER}$" "${AUTHORIZED}" |
+        /usr/bin/sed -E \
+          's/(ssh-ed25519 )[A-Za-z0-9+/=]+/\1<redacted>/'
     else
       echo "No marked Forge agent root entry is installed."
     fi
