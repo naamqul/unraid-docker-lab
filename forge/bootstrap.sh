@@ -15,13 +15,14 @@ export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 
 [[ ${EUID} -eq 0 ]] || {
-  echo "Run this bootstrap as root."
+  echo "Run this bootstrap as root on Forge." >&2
   exit 1
 }
 
+# shellcheck source=/dev/null
 . /etc/os-release
-[[ "${ID}" == "ubuntu" && "${VERSION_ID}" == "26.04" ]] || {
-  echo "Expected Kubuntu/Ubuntu 26.04; found ${PRETTY_NAME}."
+[[ "${ID}" == ubuntu && "${VERSION_ID}" == 26.04 ]] || {
+  echo "Expected Kubuntu/Ubuntu 26.04; found ${PRETTY_NAME}." >&2
   exit 1
 }
 
@@ -30,29 +31,29 @@ bash "${SCRIPT_DIR}/stabilize.sh"
 
 id "${ADMIN_USER}" >/dev/null
 [[ -r "${ADMIN_PUBKEY_FILE}" ]] || {
-  echo "Missing public key: ${ADMIN_PUBKEY_FILE}"
+  echo "Missing public key: ${ADMIN_PUBKEY_FILE}" >&2
   exit 1
 }
-[[ "$(grep -cve '^[[:space:]]*$' "${ADMIN_PUBKEY_FILE}")" -eq 1 ]] || {
-  echo "The public-key file must contain exactly one key."
-  exit 1
-}
+[[ "$(grep -cve '^[[:space:]]*$' "${ADMIN_PUBKEY_FILE}")" -eq 1 ]]
 ssh-keygen -lf "${ADMIN_PUBKEY_FILE}" >/dev/null
+
+ADMIN_HOME="$(getent passwd "${ADMIN_USER}" | cut -d: -f6)"
+ADMIN_GROUP="$(id -gn "${ADMIN_USER}")"
+[[ -d "${ADMIN_HOME}" && ! -L "${ADMIN_HOME}" ]]
 hostnamectl set-hostname "${FORGE_HOSTNAME}"
 
+# Refresh package metadata, but do not perform an unsolicited distribution
+# upgrade. Forge package and image upgrades are deliberate, approved work.
 apt-get update
-apt-get -y full-upgrade
 apt-get install -y software-properties-common
 add-apt-repository -y universe
 apt-get update
-
 apt-get install -y \
   qemu-guest-agent spice-vdagent \
   xserver-xorg-core xserver-xorg-input-libinput xcvt \
   plasma-session-x11 kwin-x11 \
   xrdp xorgxrdp dbus-x11 \
-  openssh-server unattended-upgrades ufw \
-  uidmap slirp4netns fuse-overlayfs dbus-user-session \
+  openssh-server ufw sudo \
   ca-certificates curl wget gnupg \
   git git-lfs gh \
   jq ripgrep fd-find fzf \
@@ -70,58 +71,46 @@ apt-get install -y \
   nodejs npm \
   shellcheck
 
-systemctl enable --now ssh.service
-systemctl enable --now apt-daily.timer apt-daily-upgrade.timer
+cat >/etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "0";
+EOF
+systemctl disable --now apt-daily-upgrade.timer 2>/dev/null || true
+systemctl disable --now unattended-upgrades.service 2>/dev/null || true
 
+systemctl enable --now ssh.service
 if [[ -e /dev/virtio-ports/org.qemu.guest_agent.0 ]]; then
-  systemctl start qemu-guest-agent.service
+  systemctl enable --now qemu-guest-agent.service
 else
-  echo "WARNING: QEMU guest-agent channel is not visible."
+  echo "WARNING: QEMU guest-agent channel is not visible." >&2
 fi
 
 git lfs install --system
-
 if [[ ! -e /usr/local/bin/fd && -x /usr/bin/fdfind ]]; then
   ln -s /usr/bin/fdfind /usr/local/bin/fd
 fi
 
-getent group agent-workspace >/dev/null || groupadd --system agent-workspace
-usermod -aG sudo,agent-workspace "${ADMIN_USER}"
-
-if ! id agent >/dev/null 2>&1; then
-  # The shared service identity remains hidden from SDDM because it uses a
-  # system UID. Its shell is available only through an authorized local sudo
-  # transition; the password itself remains locked.
-  useradd --system --create-home --shell /bin/bash agent
-fi
-usermod -aG agent-workspace agent
-usermod -L agent
-chmod 0700 "$(getent passwd agent | cut -d: -f6)"
-for forbidden_group in sudo docker; do
-  if id -nG agent | tr ' ' '\n' | grep -qx "${forbidden_group}"; then
-    gpasswd -d agent "${forbidden_group}"
-  fi
-done
-
-ADMIN_HOME="$(getent passwd "${ADMIN_USER}" | cut -d: -f6)"
-ADMIN_GROUP="$(id -gn "${ADMIN_USER}")"
-AUTHORIZED_KEYS="${ADMIN_HOME}/.ssh/authorized_keys"
-chmod 0700 "${ADMIN_HOME}"
-
 install -d -o "${ADMIN_USER}" -g "${ADMIN_GROUP}" -m 0700 \
   "${ADMIN_HOME}/.ssh"
-
+AUTHORIZED_KEYS="${ADMIN_HOME}/.ssh/authorized_keys"
 if [[ ! -e "${AUTHORIZED_KEYS}" ]]; then
   install -o "${ADMIN_USER}" -g "${ADMIN_GROUP}" -m 0600 \
     /dev/null "${AUTHORIZED_KEYS}"
 fi
-
 ADMIN_PUBKEY="$(tr -d '\r' <"${ADMIN_PUBKEY_FILE}")"
 grep -qxF -- "${ADMIN_PUBKEY}" "${AUTHORIZED_KEYS}" ||
   printf '%s\n' "${ADMIN_PUBKEY}" >>"${AUTHORIZED_KEYS}"
-
 chown "${ADMIN_USER}:${ADMIN_GROUP}" "${AUTHORIZED_KEYS}"
 chmod 0600 "${AUTHORIZED_KEYS}"
+
+SUDOERS_FILE=/etc/sudoers.d/90-forge-admin
+SUDOERS_TEMP="$(mktemp /etc/sudoers.d/.forge-admin.XXXXXX)"
+trap 'rm -f -- "${SUDOERS_TEMP}"' EXIT
+printf '%s ALL=(ALL:ALL) NOPASSWD: ALL\n' "${ADMIN_USER}" >"${SUDOERS_TEMP}"
+chmod 0440 "${SUDOERS_TEMP}"
+visudo -cf "${SUDOERS_TEMP}" >/dev/null
+mv -f -- "${SUDOERS_TEMP}" "${SUDOERS_FILE}"
+trap - EXIT
 
 if [[ ! -e "${ADMIN_HOME}/.xsession" ]]; then
   printf '%s\n' 'exec dbus-run-session startplasma-x11' \
@@ -129,35 +118,27 @@ if [[ ! -e "${ADMIN_HOME}/.xsession" ]]; then
   chown "${ADMIN_USER}:${ADMIN_GROUP}" "${ADMIN_HOME}/.xsession"
   chmod 0600 "${ADMIN_HOME}/.xsession"
 fi
-
 adduser xrdp ssl-cert
 systemctl enable xrdp.service
 systemctl restart xrdp.service
 
-# Always prove that vdb is the dedicated 256 GiB workspace device. On the first
-# run, initialize only a completely blank disk; on reruns, accept only the
-# exact ext4 filesystem this script creates.
+# Initialize only the dedicated, exactly sized blank workspace disk. Reruns
+# accept only the ext4 filesystem previously created by this script.
 [[ -b "${WORKSPACE_DEVICE}" ]] || {
-  echo "Workspace device ${WORKSPACE_DEVICE} is missing."
+  echo "Workspace device ${WORKSPACE_DEVICE} is missing." >&2
   exit 1
 }
-
 [[ "$(blockdev --getsize64 "${WORKSPACE_DEVICE}")" == "${WORKSPACE_BYTES}" ]] || {
-  echo "Refusing workspace setup: ${WORKSPACE_DEVICE} has an unexpected size."
+  echo "Refusing workspace setup: unexpected device size." >&2
   exit 1
 }
 
 if [[ ! -b "${WORKSPACE_PARTITION}" ]]; then
-  [[ "$(lsblk -nrpo NAME "${WORKSPACE_DEVICE}" | wc -l)" -eq 1 ]] || {
-    echo "Refusing to format ${WORKSPACE_DEVICE}: partitions already exist."
-    exit 1
-  }
-
+  [[ "$(lsblk -nrpo NAME "${WORKSPACE_DEVICE}" | wc -l)" -eq 1 ]]
   if blkid "${WORKSPACE_DEVICE}" >/dev/null 2>&1; then
-    echo "Refusing to format ${WORKSPACE_DEVICE}: a filesystem signature exists."
+    echo "Refusing to format a workspace device with a signature." >&2
     exit 1
   fi
-
   parted -s "${WORKSPACE_DEVICE}" mklabel gpt
   parted -s "${WORKSPACE_DEVICE}" mkpart primary ext4 1MiB 100%
   partprobe "${WORKSPACE_DEVICE}"
@@ -168,80 +149,49 @@ fi
 mapfile -t WORKSPACE_NODES < <(lsblk -nrpo NAME "${WORKSPACE_DEVICE}")
 [[ "${#WORKSPACE_NODES[@]}" -eq 2 &&
    "${WORKSPACE_NODES[0]}" == "${WORKSPACE_DEVICE}" &&
-   "${WORKSPACE_NODES[1]}" == "${WORKSPACE_PARTITION}" ]] || {
-  echo "Refusing workspace setup: unexpected partition layout."
-  exit 1
-}
-
-[[ "$(blkid -s TYPE -o value "${WORKSPACE_PARTITION}")" == "ext4" ]] || {
-  echo "Refusing workspace setup: ${WORKSPACE_PARTITION} is not ext4."
-  exit 1
-}
-[[ "$(blkid -s LABEL -o value "${WORKSPACE_PARTITION}")" == "forge-workspace" ]] || {
-  echo "Refusing workspace setup: filesystem label is not forge-workspace."
-  exit 1
-}
-
+   "${WORKSPACE_NODES[1]}" == "${WORKSPACE_PARTITION}" ]]
+[[ "$(blkid -s TYPE -o value "${WORKSPACE_PARTITION}")" == ext4 ]]
+[[ "$(blkid -s LABEL -o value "${WORKSPACE_PARTITION}")" == forge-workspace ]]
 WORKSPACE_UUID="$(blkid -s UUID -o value "${WORKSPACE_PARTITION}")"
-[[ -n "${WORKSPACE_UUID}" ]] || {
-  echo "Refusing workspace setup: filesystem UUID is missing."
-  exit 1
-}
+[[ -n "${WORKSPACE_UUID}" ]]
 
-install -d -o root -g agent-workspace -m 3770 /workspace
-
+install -d -o "${ADMIN_USER}" -g "${ADMIN_GROUP}" -m 0750 /workspace
 mapfile -t WORKSPACE_FSTAB_SOURCES < <(
   awk '$1 !~ /^#/ && $2 == "/workspace" { print $1 }' /etc/fstab
 )
-
 if [[ "${#WORKSPACE_FSTAB_SOURCES[@]}" -eq 0 ]]; then
   printf 'UUID=%s /workspace ext4 defaults,noatime 0 2\n' \
     "${WORKSPACE_UUID}" >>/etc/fstab
 elif [[ "${#WORKSPACE_FSTAB_SOURCES[@]}" -ne 1 ||
         "${WORKSPACE_FSTAB_SOURCES[0]}" != "UUID=${WORKSPACE_UUID}" ]]; then
-  echo "Refusing workspace setup: conflicting /workspace fstab entry."
+  echo "Refusing workspace setup: conflicting fstab entry." >&2
   exit 1
 fi
-
 mountpoint -q /workspace || mount /workspace
+[[ "$(readlink -f "$(findmnt -nro SOURCE --target /workspace)")" == \
+   "$(readlink -f "${WORKSPACE_PARTITION}")" ]]
+[[ "$(findmnt -nro FSTYPE --target /workspace)" == ext4 ]]
 
-MOUNTED_SOURCE="$(findmnt -nro SOURCE --target /workspace)"
-MOUNTED_SOURCE_RESOLVED="$(readlink -f "${MOUNTED_SOURCE}")"
-WORKSPACE_PARTITION_RESOLVED="$(readlink -f "${WORKSPACE_PARTITION}")"
-[[ "${MOUNTED_SOURCE_RESOLVED}" == "${WORKSPACE_PARTITION_RESOLVED}" ]] || {
-  echo "Refusing workspace setup: /workspace is mounted from the wrong device."
-  exit 1
-}
-[[ "$(findmnt -nro FSTYPE --target /workspace)" == "ext4" ]] || {
-  echo "Refusing workspace setup: /workspace is not mounted as ext4."
-  exit 1
-}
-
-chown root:agent-workspace /workspace
-chmod 3770 /workspace
-
-install -d -o root -g agent-workspace -m 2770 \
+chown "${ADMIN_USER}:${ADMIN_GROUP}" /workspace
+chmod 0750 /workspace
+install -d -o "${ADMIN_USER}" -g "${ADMIN_GROUP}" -m 0750 \
   /workspace/repos \
-  /workspace/shared \
-  /workspace/inbox \
-  /workspace/worktrees \
   /workspace/builds \
-  /workspace/cache
+  /workspace/tmp
 
-install -d -o agent -g agent-workspace -m 2770 \
-  /workspace/agent \
-  /workspace/agent/repos \
-  /workspace/agent/state \
-  /workspace/agent/cache \
-  /workspace/agent/builds \
-  /workspace/worktrees/agent \
-  /workspace/builds/agent \
-  /workspace/cache/agent
-
-while IFS= read -r directory; do
-  setfacl -m u::rwx,g::rwx,m::rwx,o::--- "${directory}"
-  setfacl -d -m u::rwx,g::rwx,m::rwx,o::--- "${directory}"
-done < <(find /workspace -type d -print)
+DEVELOPER_LINK="${ADMIN_HOME}/developer"
+if [[ -L "${DEVELOPER_LINK}" ]]; then
+  [[ "$(readlink -f "${DEVELOPER_LINK}")" == /workspace/repos ]] || {
+    echo "${DEVELOPER_LINK} points somewhere other than /workspace/repos." >&2
+    exit 1
+  }
+elif [[ -e "${DEVELOPER_LINK}" ]]; then
+  echo "Refusing to replace existing ${DEVELOPER_LINK}." >&2
+  exit 1
+else
+  runuser -u "${ADMIN_USER}" -- \
+    ln -s /workspace/repos "${DEVELOPER_LINK}"
+fi
 
 ufw default deny incoming
 ufw default allow outgoing
@@ -265,56 +215,40 @@ install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
   -o /etc/apt/keyrings/docker.asc
 chmod a+r /etc/apt/keyrings/docker.asc
-
-DOCKER_SUITE="${UBUNTU_CODENAME:-${VERSION_CODENAME}}"
-DOCKER_ARCH="$(dpkg --print-architecture)"
-
 cat >/etc/apt/sources.list.d/docker.sources <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu
-Suites: ${DOCKER_SUITE}
+Suites: ${UBUNTU_CODENAME:-${VERSION_CODENAME}}
 Components: stable
-Architectures: ${DOCKER_ARCH}
+Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
-
 apt-get update
 apt-get install -y \
   docker-ce docker-ce-cli containerd.io \
-  docker-buildx-plugin docker-compose-plugin \
-  docker-ce-rootless-extras
-
+  docker-buildx-plugin docker-compose-plugin
 systemctl enable --now containerd.service docker.service
-
-# Docker access remains deliberately root-only. Membership in the docker group
-# is equivalent to root and is not granted to human or agent identities.
-
-bash "${SCRIPT_DIR}/migrate-shared-agent.sh"
+usermod -aG docker "${ADMIN_USER}"
 
 if [[ -e "${SWAPFILE}" ]]; then
-  [[ "$(blkid -p -s TYPE -o value "${SWAPFILE}" 2>/dev/null || true)" == "swap" ]] || {
-    echo "Refusing to modify existing non-swap file: ${SWAPFILE}"
+  [[ "$(blkid -p -s TYPE -o value "${SWAPFILE}" 2>/dev/null || true)" == swap ]] || {
+    echo "Refusing to modify existing non-swap file: ${SWAPFILE}" >&2
     exit 1
   }
 fi
-
 if [[ ! -e "${SWAPFILE}" || "$(stat -c %s "${SWAPFILE}")" != "${SWAP_BYTES}" ]]; then
   if swapon --show=NAME --noheadings |
     sed 's/^[[:space:]]*//' |
     grep -qx "${SWAPFILE}"; then
     swapoff "${SWAPFILE}"
   fi
-
   truncate -s 0 "${SWAPFILE}"
   chmod 0600 "${SWAPFILE}"
   fallocate -l 16G "${SWAPFILE}"
-  chmod 0600 "${SWAPFILE}"
   mkswap "${SWAPFILE}"
 fi
-
 grep -Eq "^[[:space:]]*${SWAPFILE}[[:space:]]" /etc/fstab ||
   printf '%s none swap sw 0 0\n' "${SWAPFILE}" >>/etc/fstab
-
 swapon --show=NAME --noheadings |
   sed 's/^[[:space:]]*//' |
   grep -qx "${SWAPFILE}" || swapon "${SWAPFILE}"
@@ -324,7 +258,8 @@ vm.swappiness = 10
 EOF
 sysctl --system >/dev/null
 
-echo
-echo "Forge base bootstrap complete."
-echo "Ubuntu's default password and public-key SSH authentication remain enabled."
-[[ -e /var/run/reboot-required ]] && echo "A reboot is required."
+printf '%s\n' \
+  "Forge bootstrap complete for ${ADMIN_USER}." \
+  "Open a new login session before using Docker group access."
+[[ -e /var/run/reboot-required ]] &&
+  echo "Installed packages report that a reboot is required."
