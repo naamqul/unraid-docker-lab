@@ -5,7 +5,7 @@ set -Eeuo pipefail
 : "${KOMODO_VERSION:=v2.2.0}"
 : "${KOMODO_CORE:=https://komodo.arc.bonfireboogie.com}"
 : "${FORGE_SERVER_NAME:=Forge}"
-: "${AGENT_USER:=agent}"
+: "${ADMIN_USER:=luqmaan}"
 
 PERIPHERY_SHA256=ace9007805dbfe75ad73c75c36bb26852fa909d825577f31f5d13eecd3c52660
 KM_SHA256=414102fbb259064166702dc7173ffcb1e9acb0707888ffaeba74d5d479a741c5
@@ -171,9 +171,9 @@ download_verified() {
 wait_for_forge_core() {
   local _
   for _ in $(seq 1 30); do
-    if runuser -u "${AGENT_USER}" -- \
-      env HOME="${AGENT_HOME}" \
-      XDG_CONFIG_HOME="${AGENT_HOME}/.config" \
+    if runuser -u "${ADMIN_USER}" -- \
+      env HOME="${ADMIN_HOME}" \
+      XDG_CONFIG_HOME="${ADMIN_HOME}/.config" \
       /usr/local/bin/km list servers \
         --all --format json --name "${FORGE_SERVER_NAME}" \
         2>/dev/null |
@@ -387,8 +387,8 @@ install -d -o root -g root -m 0755 \
 install -d -o root -g root -m 0555 /var/lib/beszel-root
 install -d -o root -g root -m 0700 /var/lib/beszel-agent
 [[ -d /workspace && ! -L /workspace ]]
-[[ "$(stat -c '%U:%G' /workspace)" == "root:agent-workspace" ]]
-chmod 3770 /workspace
+[[ "$(stat -c '%U' /workspace)" == "${ADMIN_USER}" ]]
+chmod 0750 /workspace
 if [[ -e /workspace/.system || -L /workspace/.system ]]; then
   [[ -d /workspace/.system && ! -L /workspace/.system ]]
   [[ "$(stat -c '%U:%G' /workspace/.system)" == "root:root" ]]
@@ -459,17 +459,17 @@ TimeoutStartSec=0
 WantedBy=multi-user.target
 EOF
 
-AGENT_HOME="$(getent passwd "${AGENT_USER}" | cut -d: -f6)"
-AGENT_GROUP="$(id -gn "${AGENT_USER}")"
-[[ -d "${AGENT_HOME}" && ! -L "${AGENT_HOME}" ]]
-[[ "$(stat -c '%U:%G' "${AGENT_HOME}")" == \
-  "${AGENT_USER}:${AGENT_GROUP}" ]]
+ADMIN_HOME="$(getent passwd "${ADMIN_USER}" | cut -d: -f6)"
+ADMIN_GROUP="$(id -gn "${ADMIN_USER}")"
+[[ -d "${ADMIN_HOME}" && ! -L "${ADMIN_HOME}" ]]
+[[ "$(stat -c '%U:%G' "${ADMIN_HOME}")" == \
+  "${ADMIN_USER}:${ADMIN_GROUP}" ]]
 ensure_user_directory \
-  "${AGENT_USER}" "${AGENT_GROUP}" 0700 "${AGENT_HOME}/.config"
+  "${ADMIN_USER}" "${ADMIN_GROUP}" 0700 "${ADMIN_HOME}/.config"
 ensure_user_directory \
-  "${AGENT_USER}" "${AGENT_GROUP}" 0700 "${AGENT_HOME}/.config/komodo"
+  "${ADMIN_USER}" "${ADMIN_GROUP}" 0700 "${ADMIN_HOME}/.config/komodo"
 write_user_file \
-  "${AGENT_USER}" "${AGENT_HOME}/.config/komodo/komodo.cli.toml" 0600 <<EOF
+  "${ADMIN_USER}" "${ADMIN_HOME}/.config/komodo/komodo.cli.toml" 0600 <<EOF
 default_profile = "Arc"
 
 [[profile]]
@@ -480,44 +480,13 @@ key = "${API_KEY}"
 secret = "${API_SECRET}"
 EOF
 
-ADMIN_HOME="$(getent passwd luqmaan | cut -d: -f6)"
-ADMIN_GROUP="$(id -gn luqmaan)"
-[[ -d "${ADMIN_HOME}" && ! -L "${ADMIN_HOME}" ]]
-[[ "$(stat -c '%U:%G' "${ADMIN_HOME}")" == \
-  "luqmaan:${ADMIN_GROUP}" ]]
 ensure_user_directory \
-  luqmaan "${ADMIN_GROUP}" 0700 "${ADMIN_HOME}/.ssh"
+  "${ADMIN_USER}" "${ADMIN_GROUP}" 0700 "${ADMIN_HOME}/.ssh"
 ensure_user_directory \
-  luqmaan "${ADMIN_GROUP}" 0700 "${ADMIN_HOME}/.ssh/config.d"
+  "${ADMIN_USER}" "${ADMIN_GROUP}" 0700 "${ADMIN_HOME}/.ssh/config.d"
 ensure_user_keypair \
-  luqmaan "${ADMIN_HOME}/.ssh/github_forge_ed25519" forge-github
-
-GITHUB_HOST_KEY='github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
-ensure_user_line \
-  luqmaan "${ADMIN_HOME}/.ssh/known_hosts" 0600 "${GITHUB_HOST_KEY}"
-write_user_file \
-  luqmaan "${ADMIN_HOME}/.ssh/config.d/github" 0600 <<'EOF'
-Host github.com
-  HostName github.com
-  User git
-  IdentityFile ~/.ssh/github_forge_ed25519
-  IdentitiesOnly yes
-EOF
-ensure_user_global_include luqmaan "${ADMIN_HOME}/.ssh/config"
-
-ensure_user_directory \
-  "${AGENT_USER}" "${AGENT_GROUP}" 0700 "${AGENT_HOME}/.ssh"
-ensure_user_directory \
-  "${AGENT_USER}" "${AGENT_GROUP}" 0700 "${AGENT_HOME}/.ssh/config.d"
-ensure_user_keypair \
-  "${AGENT_USER}" "${AGENT_HOME}/.ssh/github_docs_ed25519" \
-  forge-agent-github-docs
-ensure_user_keypair \
-  "${AGENT_USER}" "${AGENT_HOME}/.ssh/unraid_readonly_ed25519" \
-  forge-agent-unraid-readonly
-ensure_user_keypair \
-  "${AGENT_USER}" "${AGENT_HOME}/.ssh/unraid_root_ed25519" \
-  forge-agent-unraid-root
+  "${ADMIN_USER}" "${ADMIN_HOME}/.ssh/arc_admin_ed25519" \
+  forge-admin@forge
 
 UNRAID_HOST_KEY="$(awk '
   $1 ~ /^ssh-ed25519$/ && $2 ~ /^[A-Za-z0-9+\/=]+$/ {
@@ -529,38 +498,19 @@ UNRAID_HOST_KEY="$(awk '
   exit 1
 }
 ensure_user_line \
-  "${AGENT_USER}" "${AGENT_HOME}/.ssh/known_hosts" 0600 \
+  "${ADMIN_USER}" "${ADMIN_HOME}/.ssh/known_hosts" 0600 \
   "${UNRAID_HOST_KEY}"
-ensure_user_line \
-  "${AGENT_USER}" "${AGENT_HOME}/.ssh/known_hosts" 0600 \
-  "${GITHUB_HOST_KEY}"
 write_user_file \
-  "${AGENT_USER}" "${AGENT_HOME}/.ssh/config.d/github" 0600 <<'EOF'
-Host github.com
-  HostName github.com
-  User git
-  IdentityFile ~/.ssh/github_docs_ed25519
-  IdentitiesOnly yes
-EOF
-write_user_file \
-  "${AGENT_USER}" "${AGENT_HOME}/.ssh/config.d/unraid" 0600 <<'EOF'
+  "${ADMIN_USER}" "${ADMIN_HOME}/.ssh/config.d/unraid" 0600 <<'EOF'
 Host unraid arc
   HostName 192.168.50.51
   User root
-  IdentityFile ~/.ssh/unraid_readonly_ed25519
-  IdentitiesOnly yes
-  StrictHostKeyChecking yes
-  UserKnownHostsFile ~/.ssh/known_hosts
-
-Host unraid-root arc-root
-  HostName 192.168.50.51
-  User root
-  IdentityFile ~/.ssh/unraid_root_ed25519
+  IdentityFile ~/.ssh/arc_admin_ed25519
   IdentitiesOnly yes
   StrictHostKeyChecking yes
   UserKnownHostsFile ~/.ssh/known_hosts
 EOF
-ensure_user_global_include "${AGENT_USER}" "${AGENT_HOME}/.ssh/config"
+ensure_user_global_include "${ADMIN_USER}" "${ADMIN_HOME}/.ssh/config"
 
 /usr/local/sbin/forge-stabilize
 systemctl daemon-reload
@@ -576,10 +526,9 @@ revoke_onboarding_key
 onboarding_revoked=true
 systemctl restart xrdp.service
 
-ssh-keygen -lf "${ADMIN_HOME}/.ssh/github_forge_ed25519.pub"
-ssh-keygen -lf "${AGENT_HOME}/.ssh/github_docs_ed25519.pub"
-ssh-keygen -lf "${AGENT_HOME}/.ssh/unraid_readonly_ed25519.pub"
-ssh-keygen -lf "${AGENT_HOME}/.ssh/unraid_root_ed25519.pub"
+ssh-keygen -lf "${ADMIN_HOME}/.ssh/arc_admin_ed25519.pub"
 printf '%s\n' \
   'Forge integrations installed; Core onboarding was verified, removed,' \
-  'and revoked. Authorize only the printed scoped agent-key fingerprints.'
+  'and revoked.' \
+  'Authorize this public key on Arc with authorize-forge-admin-key.sh:' \
+  "  ${ADMIN_HOME}/.ssh/arc_admin_ed25519.pub"
