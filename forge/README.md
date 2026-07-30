@@ -32,6 +32,7 @@ project handoffs. This directory contains the deployable Forge assets.
 | `bootstrap.sh` | Base OS, workspace, sudo, Docker, SSH, RDP, and build tools |
 | `install-harnesses.sh` | Official latest Codex, Claude, and Hermes installers |
 | `install-onepassword-cli.sh` | Official 1Password CLI repository installer |
+| `configure-github.sh` | Direct `luqmaan` GitHub CLI and HTTPS Git provisioning |
 | `configure-integrations.sh` | Komodo Periphery, Beszel, direct Komodo CLI, and Arc SSH key |
 | `authorize-forge-admin-key.sh` | Arc-side authorization for the dedicated Forge admin key |
 | `stabilize.sh` | Existing Forge display/session recovery settings |
@@ -53,7 +54,8 @@ filesystem, mount source, conflicting fstab entry, or existing
 `~/developer` path.
 
 It does not run `full-upgrade`. Package and image updates are separate,
-user-approved tasks.
+user-approved tasks. It installs `gh` but leaves GitHub authentication
+unconfigured until the 1Password-backed step below.
 
 ## Harnesses
 
@@ -112,6 +114,8 @@ The script:
 
 The script restarts Periphery and XRDP. Treat running it as disruptive work and
 obtain the approval required by the homelab operations policy first.
+GitHub is deliberately configured separately and directly as `luqmaan`; it is
+not changed by this root integration script.
 
 Copy only the generated public key to Arc and authorize it there:
 
@@ -140,6 +144,25 @@ The script installs the official 1Password CLI, moves the token to
 staged copy, and installs `~/.local/bin/op`. That small launcher exposes the
 token only to `/usr/bin/op`; it is not exported into every Forge shell.
 
+After that launcher works, provision GitHub directly as `luqmaan`, without
+`sudo`:
+
+```bash
+/path/to/forge/configure-github.sh
+```
+
+The script reads `op://Homelab/Github PAT/credential`, validates that it
+authenticates as `naamqul` and can access both private source repositories,
+then installs the GitHub CLI configuration and HTTPS Git credential helper.
+It never prints the PAT. The host configuration intentionally includes both
+the per-user token map and the legacy top-level `oauth_token` required by
+Forge's Ubuntu `gh` 2.46 package.
+
+`gh auth status` warns that this accepted PAT lacks `read:org`. That warning is
+expected: `naamqul` owns the repositories, and the validated GitHub CLI and
+HTTPS Git workflows work without that scope. Do not request broader token
+scope merely to silence the warning.
+
 ## Operating rules
 
 - Use Komodo for Arc container deployment and lifecycle management.
@@ -160,6 +183,7 @@ token only to `/usr/bin/op`; it is not exported into every Forge shell.
 
 ## Recovery assets
 
-`stabilize.sh`, `restart-unraid-docker-clean-env.sh`, both VM XML definitions,
-and `stacks/forge-observability/` are retained as operational/recovery assets.
-Do not run a restart helper merely to inspect or validate it.
+`configure-github.sh`, `stabilize.sh`,
+`restart-unraid-docker-clean-env.sh`, both VM XML definitions, and
+`stacks/forge-observability/` are retained as operational/recovery assets. Do
+not run a restart helper merely to inspect or validate it.
