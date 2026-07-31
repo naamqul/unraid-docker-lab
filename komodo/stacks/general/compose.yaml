@@ -77,7 +77,7 @@ services:
 
   neko:
     container_name: neko
-    image: ghcr.io/m1k1o/neko/brave@sha256:3c3d1c3fa607e15ddec357107f5c1843fa370b91a918e93045d072178ed60365
+    image: ghcr.io/m1k1o/neko/brave
     restart: unless-stopped
     shm_size: 2gb
     depends_on:
@@ -98,7 +98,13 @@ services:
       NEKO_WEBRTC_UDPMUX: "59000"
       NEKO_WEBRTC_TCPMUX: "59000"
       NEKO_WEBRTC_NAT1TO1: 192.168.50.51
-      NEKO_WEBRTC_ICELITE: "true"
+      # ICE-Lite assumes a directly reachable address with no NAT in front. Arc
+      # has Docker DNAT plus the NAT1TO1 rewrite above, and an ICE-Lite agent is
+      # purely passive: it answers connectivity checks but never sends its own,
+      # so it cannot establish a path when the offered one fails. Clients opened
+      # ICE-TCP and timed out with no candidate pair nominated. Full ICE probes
+      # actively and tolerates this NAT layering.
+      NEKO_WEBRTC_ICELITE: "false"
       TZ: ${TZ:-America/Los_Angeles}
     volumes:
       - /mnt/user/appdata/neko-state/profile:/home/neko/.config/brave

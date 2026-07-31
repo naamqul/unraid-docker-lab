@@ -388,7 +388,7 @@ Unraid's `nobody:users` account (`99:100`). FileBrowser maps the complete
 and also runs as `99:100`. The UI therefore shows `stash` as a folder instead
 of opening directly into its contents.
 
-Neko uses the pinned Brave image and keeps its browser profile under
+Neko follows the upstream Brave tag and keeps its browser profile under
 `/mnt/user/appdata/neko-state/profile` as UID/GID `1000:1000`. Caddy terminates
 HTTPS and WebSocket signaling at `https://neko.arc.bonfireboogie.com`, while
 WebRTC media connects directly to Arc at TCP/UDP port `59000`. HTTP reverse
