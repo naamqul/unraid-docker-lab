@@ -7,8 +7,13 @@ general:
 search:
   safe_search: 0
   autocomplete: duckduckgo
+  # Instance-wide; SearXNG has no per-engine format setting. json/csv/rss turn
+  # /search into an unauthenticated API for anything that can reach the vhost.
   formats:
     - html
+    - json
+    - csv
+    - rss
 
 server:
   secret_key: ultrasecretkey
