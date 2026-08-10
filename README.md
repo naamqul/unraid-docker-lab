@@ -148,6 +148,7 @@ The primary, publicly trusted names are:
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 | `llama-swap.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:9292` |
 | `unsloth.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:8188` |
+| `vibepollo.blackwell.bonfireboogie.com` | Blackwell's native Vibepollo admin UI at `192.168.50.125:47990` |
 
 The prior `.arc.home.arpa` Caddy handlers remain as dormant migration aliases.
 Their NextDNS rewrites were removed, so they resolve only on a client with an
@@ -294,7 +295,10 @@ External workstation services use their own wildcard site. The
 `*.blackwell.bonfireboogie.com` block proxies only explicitly matched hostnames to
 the reserved Blackwell address `192.168.50.125`. Windows Firewall permits the raw
 ports only from Arc (`192.168.50.51`) and Caddy (`192.168.50.52`); no WAN port
-forward is used.
+forward is used. Vibepollo is a native Windows service rather than a Docker
+workload. Caddy terminates its browser-facing public TLS and connects to the
+service's self-signed HTTPS listener with certificate verification disabled
+only for that upstream.
 
 ## Komodo stack ownership
 
@@ -537,9 +541,10 @@ configured to use a dedicated dashboard account to show Arc's CPU, memory,
 disk, and network metrics. Store that account only as
 `HOMEPAGE_BESZEL_USERNAME` and `HOMEPAGE_BESZEL_PASSWORD` in the ignored
 `general/.env`; Homepage receives them through `HOMEPAGE_VAR_*` substitutions.
-The AI Lab section also links to llama-swap and Unsloth on Blackwell. These entries
-intentionally omit Arc Docker status fields because the containers run on a
-different Docker engine.
+The AI Lab section also links to llama-swap and Unsloth on Blackwell. The Remote
+Access section links to Vibepollo's native Windows admin UI. These entries
+intentionally omit Arc Docker status fields because they do not run in Arc's
+Docker engine.
 
 ## Jellyfin
 

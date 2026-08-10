@@ -130,6 +130,15 @@ arc.bonfireboogie.com {
 		reverse_proxy 192.168.50.125:8188
 	}
 
+	@vibepollo host vibepollo.blackwell.bonfireboogie.com
+	handle @vibepollo {
+		reverse_proxy https://192.168.50.125:47990 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+
 	handle {
 		abort
 	}

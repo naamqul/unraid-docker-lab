@@ -90,6 +90,10 @@
         description: SSH and remote desktop gateway
         server: arc-docker
         container: termix
+    - Vibepollo:
+        icon: sunshine.svg
+        href: https://vibepollo.blackwell.bonfireboogie.com
+        description: Blackwell game-streaming host
     - Forge Console:
         icon: linux.svg
         href: https://termix.arc.bonfireboogie.com
