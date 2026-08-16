@@ -44,11 +44,12 @@ Each runner may be one of:
 - `upstream-cpu`
 - `ik-cpu`
 - `openvino-npu`
+- `intel-sycl`
 
 The backend label is metadata plus a validation policy; the harness never
-changes devices. An OpenVINO NPU profile should provide startup-log evidence
-and at least one numeric NPU activity counter. This prevents a CPU fallback
-from being accepted as an NPU result.
+changes devices. OpenVINO NPU and Intel SYCL profiles should provide
+startup-log evidence and at least one numeric accelerator activity counter.
+This prevents a CPU fallback from being accepted as an accelerator result.
 
 Validate the corpus and runner file without making a network request:
 
@@ -138,7 +139,7 @@ sh safety-watch.sh qwen38-upstream /tmp/qwen38-benchmark/abort-RUN_ID 8
 ```
 
 Pass that same path to Python with `--abort-file`. Stop the watcher with
-Ctrl-C after the finite run. Valid service arguments are exactly the six
+Ctrl-C after the finite run. Valid service arguments are exactly the seven
 `qwen38-*` benchmark services in `compose.yaml`. At the threshold, the watcher
 touches the abort file and runs only:
 

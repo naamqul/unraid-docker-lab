@@ -68,6 +68,40 @@ services:
         max-size: 20m
         max-file: "3"
 
+  qwen38-sycl:
+    container_name: qwen38-sycl
+    image: ghcr.io/mostlygeek/llama-swap:v250-intel-b10450@sha256:4a28ac2941438751ee129e80861aff83fb77a6e88f7fdb9845ca04eb72e22a25
+    profiles: [qwen38-sycl]
+    init: true
+    restart: "no"
+    mem_limit: 38g
+    memswap_limit: 38g
+    environment:
+      ONEAPI_DEVICE_SELECTOR: level_zero:gpu
+      GGML_SYCL_ENABLE_LEVEL_ZERO: "1"
+      UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS: "1"
+      ZES_ENABLE_SYSMAN: "1"
+      SYCL_CACHE_PERSISTENT: "1"
+    devices:
+      - /dev/dri:/dev/dri
+    ports:
+      - "127.0.0.1:9299:8080"
+    volumes:
+      - ./qwen38/sycl.yaml:/app/config.yaml:ro
+      - /mnt/cache/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF:/models:ro
+    networks:
+      - caddy-backend
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 2m
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "3"
+
   qwen38-ik:
     container_name: qwen38-ik
     image: ghcr.io/ikawrakow/ik-llama-cpp:cpu-swap@sha256:4521b0affdbe3f02da81b9988122659f820f579c480fef7fb6e0bab8556d700a

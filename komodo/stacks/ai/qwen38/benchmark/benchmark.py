@@ -26,7 +26,7 @@ from typing import Any, Callable, Iterable
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 DEFAULT_CORPUS = SCRIPT_DIR / "corpus.json"
-KNOWN_BACKENDS = {"upstream-cpu", "ik-cpu", "openvino-npu"}
+KNOWN_BACKENDS = {"upstream-cpu", "ik-cpu", "openvino-npu", "intel-sycl"}
 CSV_FIELDS = [
     "runner",
     "backend",
@@ -692,7 +692,7 @@ def runner_preflight(runner: dict[str, Any], client: HttpClient) -> dict[str, An
     evidence["activity_before"] = activity
     if bool(runner.get("require_activity", runner["backend"] == "openvino-npu")):
         if not activity or not any(value is not None for value in activity.values()):
-            raise RunnerRejected("NPU activity evidence is required but no counter is readable")
+            raise RunnerRejected("Accelerator activity evidence is required but no counter is readable")
     return evidence
 
 
@@ -770,7 +770,7 @@ def request_record(
         runner.get("require_activity", runner["backend"] == "openvino-npu")
     )
     if activity_required and not activity_increased(activity_before, activity_after):
-        raise RunnerRejected("NPU activity counters did not increase during inference")
+        raise RunnerRejected("Accelerator activity counters did not increase during inference")
 
     return {
         "runner": runner["name"],
