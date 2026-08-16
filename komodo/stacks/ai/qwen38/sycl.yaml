@@ -1,3 +1,6 @@
+# Reproduction profile only: the pinned b10450 Intel build reaches the B390
+# through Level Zero but currently GPFs while loading this exact 262K model.
+# Keep the profile stopped; see benchmark/RESULTS-20260816.md.
 healthCheckTimeout: 3600
 logLevel: info
 logToStdout: both
