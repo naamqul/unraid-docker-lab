@@ -1,5 +1,8 @@
 # Arc Qwen3.8 runner benchmark
 
+The completed 2026-08-16 Arc comparison and retained configuration are recorded
+in [`RESULTS-20260816.md`](RESULTS-20260816.md).
+
 This directory contains a dependency-free benchmark client for comparing
 multiple OpenAI-compatible Qwen3.8 runners with the same fixed workload. The
 Python client does not start, stop, reconfigure, or download anything. Runner
