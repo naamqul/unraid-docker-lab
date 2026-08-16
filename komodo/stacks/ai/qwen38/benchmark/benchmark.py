@@ -26,7 +26,14 @@ from typing import Any, Callable, Iterable
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 DEFAULT_CORPUS = SCRIPT_DIR / "corpus.json"
-KNOWN_BACKENDS = {"upstream-cpu", "ik-cpu", "openvino-npu", "intel-sycl"}
+KNOWN_BACKENDS = {
+    "upstream-cpu",
+    "ik-cpu",
+    "openvino-npu",
+    "openvino-gpu",
+    "intel-sycl",
+    "vulkan",
+}
 CSV_FIELDS = [
     "runner",
     "backend",

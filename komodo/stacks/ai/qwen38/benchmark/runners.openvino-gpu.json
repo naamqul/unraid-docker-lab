@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "template": "arc-openvino-gpu",
+  "defaults": {
+    "request_timeout_seconds": 21600,
+    "min_free_gib": 8,
+    "require_memory_check": true,
+    "require_exact_context": true,
+    "max_consecutive_errors": 1,
+    "verify_tls": true,
+    "backend": "openvino-gpu",
+    "require_mtp_stats": false,
+    "required_backend_regex": "(?is)OpenVINO: using device GPU.*GGML OpenVINO Backend:.*OV raw infer time",
+    "forbidden_backend_regex": "(?is)device .* not available, fallback to CPU|OpenVINO: using device CPU",
+    "require_backend_evidence": true,
+    "require_activity": false
+  },
+  "runners": [
+    {
+      "name": "openvino-gpu-262k-text",
+      "base_url": "http://127.0.0.1:9301/v1",
+      "native_base_url": "http://127.0.0.1:9301",
+      "model": "qwen38-openvino-gpu-262k-text",
+      "context": 262144,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-openvino-gpu-262k-text.startup.log"
+    },
+    {
+      "name": "openvino-gpu-131k-text",
+      "base_url": "http://127.0.0.1:9302/v1",
+      "native_base_url": "http://127.0.0.1:9302",
+      "model": "qwen38-openvino-gpu-131k-text",
+      "context": 131072,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-openvino-gpu-131k-text.startup.log"
+    },
+    {
+      "name": "openvino-gpu-262k-mtp1",
+      "base_url": "http://127.0.0.1:9303/v1",
+      "native_base_url": "http://127.0.0.1:9303",
+      "model": "qwen38-openvino-gpu-262k-mtp1",
+      "context": 262144,
+      "require_mtp_stats": true,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-openvino-gpu-262k-mtp1.startup.log"
+    },
+    {
+      "name": "openvino-gpu-131k-mtp1",
+      "base_url": "http://127.0.0.1:9304/v1",
+      "native_base_url": "http://127.0.0.1:9304",
+      "model": "qwen38-openvino-gpu-131k-mtp1",
+      "context": 131072,
+      "require_mtp_stats": true,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-openvino-gpu-131k-mtp1.startup.log"
+    },
+    {
+      "name": "openvino-gpu-262k-vision",
+      "base_url": "http://127.0.0.1:9305/v1",
+      "native_base_url": "http://127.0.0.1:9305",
+      "model": "qwen38-openvino-gpu-262k-vision",
+      "context": 262144,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-openvino-gpu-262k-vision.startup.log"
+    },
+    {
+      "name": "openvino-gpu-131k-vision",
+      "base_url": "http://127.0.0.1:9306/v1",
+      "native_base_url": "http://127.0.0.1:9306",
+      "model": "qwen38-openvino-gpu-131k-vision",
+      "context": 131072,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-openvino-gpu-131k-vision.startup.log"
+    }
+  ]
+}

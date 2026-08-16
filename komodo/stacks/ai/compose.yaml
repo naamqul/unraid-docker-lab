@@ -25,6 +25,40 @@ x-qwen38-openvino: &qwen38-openvino
       max-size: 20m
       max-file: "3"
 
+x-qwen38-openvino-gpu-env: &qwen38-openvino-gpu-env
+  GGML_OPENVINO_DEVICE: GPU
+  GGML_OPENVINO_STATEFUL_EXECUTION: "0"
+  GGML_OPENVINO_REDUCE_COMPILE_MEM: "1"
+  GGML_OPENVINO_RELEASE_WEIGHTS: "0"
+  GGML_OPENVINO_PROFILING: "1"
+
+x-qwen38-openvino-gpu: &qwen38-openvino-gpu
+  image: ghcr.io/ggml-org/llama.cpp:server-openvino@sha256:04862a03faabcb1338d0e17d6cbd1ec6e994e17a69af63ed3da40d55d28e8ce4
+  init: true
+  restart: "no"
+  mem_limit: 40g
+  memswap_limit: 40g
+  entrypoint:
+    - /bin/sh
+    - /bench/openvino-gpu-runner.sh
+  devices:
+    - /dev/dri:/dev/dri
+  volumes:
+    - ./qwen38/openvino-gpu-runner.sh:/bench/openvino-gpu-runner.sh:ro
+    - /mnt/cache/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF:/models:ro
+  networks:
+    - caddy-backend
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 2m
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "3"
+
 services:
   open-webui:
     container_name: open-webui
@@ -88,6 +122,36 @@ services:
       - "127.0.0.1:9299:8080"
     volumes:
       - ./qwen38/sycl.yaml:/app/config.yaml:ro
+      - /mnt/cache/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF:/models:ro
+    networks:
+      - caddy-backend
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 2m
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "3"
+
+  qwen38-vulkan:
+    container_name: qwen38-vulkan
+    image: ghcr.io/mostlygeek/llama-swap:unified-vulkan@sha256:37d51ee2973b811e1f302073061684b245963a74e252c5d013fb099d622b1f7f
+    profiles: [qwen38-vulkan]
+    init: true
+    restart: "no"
+    mem_limit: 38g
+    memswap_limit: 38g
+    environment:
+      GGML_VK_VISIBLE_DEVICES: "0"
+    devices:
+      - /dev/dri:/dev/dri
+    ports:
+      - "127.0.0.1:9300:8080"
+    volumes:
+      - ./qwen38/vulkan.yaml:/etc/llama-swap/config/config.yaml:ro
       - /mnt/cache/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF:/models:ro
     networks:
       - caddy-backend
@@ -298,6 +362,84 @@ services:
       - --jinja
       - --metrics
       - --perf
+
+  qwen38-openvino-gpu-262k-text:
+    <<: *qwen38-openvino-gpu
+    container_name: qwen38-openvino-gpu-262k-text
+    profiles: [qwen38-openvino-gpu-262k-text]
+    environment:
+      <<: *qwen38-openvino-gpu-env
+      QWEN_ALIAS: qwen38-openvino-gpu-262k-text
+      QWEN_CONTEXT: "262144"
+      QWEN_MTP: "0"
+      QWEN_VISION: "0"
+    ports:
+      - "127.0.0.1:9301:8080"
+
+  qwen38-openvino-gpu-131k-text:
+    <<: *qwen38-openvino-gpu
+    container_name: qwen38-openvino-gpu-131k-text
+    profiles: [qwen38-openvino-gpu-131k-text]
+    environment:
+      <<: *qwen38-openvino-gpu-env
+      QWEN_ALIAS: qwen38-openvino-gpu-131k-text
+      QWEN_CONTEXT: "131072"
+      QWEN_MTP: "0"
+      QWEN_VISION: "0"
+    ports:
+      - "127.0.0.1:9302:8080"
+
+  qwen38-openvino-gpu-262k-mtp1:
+    <<: *qwen38-openvino-gpu
+    container_name: qwen38-openvino-gpu-262k-mtp1
+    profiles: [qwen38-openvino-gpu-262k-mtp1]
+    environment:
+      <<: *qwen38-openvino-gpu-env
+      QWEN_ALIAS: qwen38-openvino-gpu-262k-mtp1
+      QWEN_CONTEXT: "262144"
+      QWEN_MTP: "1"
+      QWEN_VISION: "0"
+    ports:
+      - "127.0.0.1:9303:8080"
+
+  qwen38-openvino-gpu-131k-mtp1:
+    <<: *qwen38-openvino-gpu
+    container_name: qwen38-openvino-gpu-131k-mtp1
+    profiles: [qwen38-openvino-gpu-131k-mtp1]
+    environment:
+      <<: *qwen38-openvino-gpu-env
+      QWEN_ALIAS: qwen38-openvino-gpu-131k-mtp1
+      QWEN_CONTEXT: "131072"
+      QWEN_MTP: "1"
+      QWEN_VISION: "0"
+    ports:
+      - "127.0.0.1:9304:8080"
+
+  qwen38-openvino-gpu-262k-vision:
+    <<: *qwen38-openvino-gpu
+    container_name: qwen38-openvino-gpu-262k-vision
+    profiles: [qwen38-openvino-gpu-262k-vision]
+    environment:
+      <<: *qwen38-openvino-gpu-env
+      QWEN_ALIAS: qwen38-openvino-gpu-262k-vision
+      QWEN_CONTEXT: "262144"
+      QWEN_MTP: "0"
+      QWEN_VISION: "1"
+    ports:
+      - "127.0.0.1:9305:8080"
+
+  qwen38-openvino-gpu-131k-vision:
+    <<: *qwen38-openvino-gpu
+    container_name: qwen38-openvino-gpu-131k-vision
+    profiles: [qwen38-openvino-gpu-131k-vision]
+    environment:
+      <<: *qwen38-openvino-gpu-env
+      QWEN_ALIAS: qwen38-openvino-gpu-131k-vision
+      QWEN_CONTEXT: "131072"
+      QWEN_MTP: "0"
+      QWEN_VISION: "1"
+    ports:
+      - "127.0.0.1:9306:8080"
 
 networks:
   caddy-backend:
