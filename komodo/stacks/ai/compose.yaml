@@ -1,5 +1,30 @@
 name: ai
 
+x-qwen38-openvino: &qwen38-openvino
+  image: ghcr.io/ggml-org/llama.cpp:server-openvino@sha256:04862a03faabcb1338d0e17d6cbd1ec6e994e17a69af63ed3da40d55d28e8ce4
+  init: true
+  restart: "no"
+  mem_limit: 38g
+  memswap_limit: 38g
+  environment:
+    GGML_OPENVINO_DEVICE: NPU
+  devices:
+    - /dev/accel/accel0:/dev/accel/accel0
+  volumes:
+    - /mnt/cache/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF:/models:ro
+  networks:
+    - caddy-backend
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 2m
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "3"
+
 services:
   open-webui:
     container_name: open-webui
@@ -16,3 +41,230 @@ services:
       TZ: ${TZ:-America/Los_Angeles}
     volumes:
       - /mnt/user/appdata/open-webui-state/data:/app/backend/data
+
+  qwen38-upstream:
+    container_name: qwen38-upstream
+    image: ghcr.io/mostlygeek/llama-swap:cpu@sha256:f06135baf7195a2e3bb43fabff9e348a9f192e26644e6c758b090df965a2ab41
+    profiles: [qwen38-upstream]
+    init: true
+    restart: "no"
+    mem_limit: 38g
+    memswap_limit: 38g
+    ports:
+      - "127.0.0.1:9293:8080"
+    volumes:
+      - ./qwen38/upstream.yaml:/app/config.yaml:ro
+      - /mnt/cache/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF:/models:ro
+    networks:
+      - caddy-backend
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 2m
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "3"
+
+  qwen38-ik:
+    container_name: qwen38-ik
+    image: ghcr.io/ikawrakow/ik-llama-cpp:cpu-swap@sha256:4521b0affdbe3f02da81b9988122659f820f579c480fef7fb6e0bab8556d700a
+    profiles: [qwen38-ik]
+    init: true
+    restart: "no"
+    mem_limit: 38g
+    memswap_limit: 38g
+    ports:
+      - "127.0.0.1:9294:8080"
+    volumes:
+      - ./qwen38/ik.yaml:/app/config.yaml:ro
+      - /mnt/cache/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF:/models:ro
+    networks:
+      - caddy-backend
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 2m
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "3"
+
+  qwen38-openvino-262k-vision:
+    <<: *qwen38-openvino
+    container_name: qwen38-openvino-262k-vision
+    profiles: [qwen38-openvino-262k-vision]
+    ports:
+      - "127.0.0.1:9295:8080"
+    command:
+      - --model
+      - /models/Qwen3.8-27B-ABLITERATED-Q6_K.gguf
+      - --mmproj
+      - /models/mmproj-Qwen3.8-27B-ABLITERATED-F16.gguf
+      - --alias
+      - qwen38-openvino-262k-vision
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - "262144"
+      - --parallel
+      - "1"
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --flash-attn
+      - "on"
+      - --batch-size
+      - "2048"
+      - --ubatch-size
+      - "512"
+      - --image-max-tokens
+      - "1024"
+      - --mtmd-batch-max-tokens
+      - "1024"
+      - --cache-ram
+      - "0"
+      - --ctx-checkpoints
+      - "0"
+      - --no-cache-idle-slots
+      - --no-context-shift
+      - --no-warmup
+      - --jinja
+      - --metrics
+      - --perf
+  qwen38-openvino-262k-text:
+    <<: *qwen38-openvino
+    container_name: qwen38-openvino-262k-text
+    profiles: [qwen38-openvino-262k-text]
+    ports:
+      - "127.0.0.1:9296:8080"
+    command:
+      - --model
+      - /models/Qwen3.8-27B-ABLITERATED-Q6_K.gguf
+      - --alias
+      - qwen38-openvino-262k-text
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - "262144"
+      - --parallel
+      - "1"
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --flash-attn
+      - "on"
+      - --batch-size
+      - "2048"
+      - --ubatch-size
+      - "512"
+      - --cache-ram
+      - "0"
+      - --ctx-checkpoints
+      - "0"
+      - --no-cache-idle-slots
+      - --no-context-shift
+      - --no-warmup
+      - --jinja
+      - --metrics
+      - --perf
+
+  qwen38-openvino-131k-vision:
+    <<: *qwen38-openvino
+    container_name: qwen38-openvino-131k-vision
+    profiles: [qwen38-openvino-131k-vision]
+    ports:
+      - "127.0.0.1:9297:8080"
+    command:
+      - --model
+      - /models/Qwen3.8-27B-ABLITERATED-Q6_K.gguf
+      - --mmproj
+      - /models/mmproj-Qwen3.8-27B-ABLITERATED-F16.gguf
+      - --alias
+      - qwen38-openvino-131k-vision
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - "131072"
+      - --parallel
+      - "1"
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --flash-attn
+      - "on"
+      - --batch-size
+      - "2048"
+      - --ubatch-size
+      - "512"
+      - --image-max-tokens
+      - "1024"
+      - --mtmd-batch-max-tokens
+      - "1024"
+      - --cache-ram
+      - "0"
+      - --ctx-checkpoints
+      - "0"
+      - --no-cache-idle-slots
+      - --no-context-shift
+      - --no-warmup
+      - --jinja
+      - --metrics
+      - --perf
+
+  qwen38-openvino-131k-text:
+    <<: *qwen38-openvino
+    container_name: qwen38-openvino-131k-text
+    profiles: [qwen38-openvino-131k-text]
+    ports:
+      - "127.0.0.1:9298:8080"
+    command:
+      - --model
+      - /models/Qwen3.8-27B-ABLITERATED-Q6_K.gguf
+      - --alias
+      - qwen38-openvino-131k-text
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - "131072"
+      - --parallel
+      - "1"
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --flash-attn
+      - "on"
+      - --batch-size
+      - "2048"
+      - --ubatch-size
+      - "512"
+      - --cache-ram
+      - "0"
+      - --ctx-checkpoints
+      - "0"
+      - --no-cache-idle-slots
+      - --no-context-shift
+      - --no-warmup
+      - --jinja
+      - --metrics
+      - --perf
+
+networks:
+  caddy-backend:
+    external: true

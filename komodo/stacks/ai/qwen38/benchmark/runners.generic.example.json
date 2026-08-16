@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "template": "generic",
+  "defaults": {
+    "context": 262144,
+    "api_key_env": "OPENAI_API_KEY",
+    "request_timeout_seconds": 21600,
+    "min_free_gib": 8,
+    "require_memory_check": true,
+    "require_exact_context": true,
+    "require_mtp_stats": true,
+    "max_consecutive_errors": 1,
+    "verify_tls": true
+  },
+  "runners": [
+    {
+      "name": "upstream-cpu",
+      "backend": "upstream-cpu",
+      "base_url": "http://127.0.0.1:9292/v1",
+      "native_base_url": "http://127.0.0.1:9292/upstream/qwen38-upstream-cpu",
+      "model": "qwen38-upstream-cpu",
+      "backend_evidence_file": "/path/to/upstream-cpu.startup.log",
+      "required_backend_regex": "(?i)CPU",
+      "forbidden_backend_regex": "(?i)(CUDA|SYCL|OPENVINO|offloaded [1-9][0-9]* layers)"
+    },
+    {
+      "name": "ik-cpu",
+      "backend": "ik-cpu",
+      "base_url": "http://127.0.0.1:9292/v1",
+      "native_base_url": "http://127.0.0.1:9292/upstream/qwen38-ik-cpu",
+      "model": "qwen38-ik-cpu",
+      "backend_evidence_file": "/path/to/ik-cpu.startup.log",
+      "required_backend_regex": "(?i)CPU",
+      "forbidden_backend_regex": "(?i)(CUDA|SYCL|OPENVINO|offloaded [1-9][0-9]* layers)"
+    },
+    {
+      "name": "openvino-npu",
+      "backend": "openvino-npu",
+      "base_url": "http://127.0.0.1:9292/v1",
+      "native_base_url": "http://127.0.0.1:9292/upstream/qwen38-openvino-npu",
+      "model": "qwen38-openvino-npu",
+      "backend_evidence_file": "/path/to/openvino-npu.startup.log",
+      "required_backend_regex": "(?is)OPENVINO.*NPU|NPU.*OPENVINO",
+      "forbidden_backend_regex": "(?i)OPENVINO_DEVICE[=: ]+CPU",
+      "require_backend_evidence": true,
+      "require_activity": true,
+      "activity_files": [
+        "/sys/class/accel/accel0/device/npu_busy_time_us"
+      ]
+    }
+  ]
+}

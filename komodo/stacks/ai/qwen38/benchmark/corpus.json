@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "description": "Fixed Arc workload for fair Qwen3.8 Q6_K, F16 mmproj, and MTP comparisons.",
+  "name": "qwen38-q6-f16-mtp-fixed-v1",
+  "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0,
+    "seed": 380027,
+    "cache_prompt": false,
+    "chat_template_kwargs": {
+      "enable_thinking": true,
+      "reasoning_effort": "medium"
+    }
+  },
+  "system": "You are running a reproducible local inference benchmark. Follow the requested output format exactly, then complete the requested explanation without mentioning the benchmark harness.",
+  "generator": {
+    "seed": 987654321,
+    "vocabulary": [
+      "amber", "archive", "array", "bridge", "cache", "cedar", "checkpoint", "cobalt",
+      "container", "context", "copper", "coral", "delta", "ember", "falcon", "fiber",
+      "forge", "garden", "harbor", "helium", "index", "kernel", "lantern", "lunar",
+      "maple", "matrix", "memory", "network", "opal", "orion", "packet", "panther",
+      "quartz", "queue", "raven", "relay", "river", "router", "saffron", "signal",
+      "silver", "socket", "storage", "stream", "summit", "tensor", "timber", "token",
+      "topaz", "vector", "violet", "willow", "window", "winter", "zenith", "zinc"
+    ]
+  },
+  "workloads": [
+    {
+      "id": "text_interactive",
+      "kind": "text",
+      "repetitions": 5,
+      "max_tokens": 512,
+      "prompt": "Begin your response with the exact token BENCHMARK_READY. Then give a detailed, self-contained explanation of how speculative decoding can improve local language-model generation, including why draft-token acceptance matters and why results must be measured end to end. Aim for at least 450 words.",
+      "expected_contains": ["BENCHMARK_READY"]
+    },
+    {
+      "id": "vision_interactive",
+      "kind": "vision",
+      "repetitions": 5,
+      "max_tokens": 256,
+      "image": "fixtures/vision-quadrants.png.b64",
+      "image_mime": "image/png",
+      "image_sha256": "c3e865670d9bbeaec62cb5501187acce71737782582e948e2e5eb0e4f137d5d5",
+      "prompt": "Inspect the attached synthetic image. Begin with exactly: red, blue, green, yellow. That list must describe the quadrants in top-left, top-right, bottom-left, bottom-right order. Then briefly describe the white dividing lines and how you determined the ordering.",
+      "expected_contains": ["red", "blue", "green", "yellow"],
+      "expected_order": ["red", "blue", "green", "yellow"]
+    },
+    {
+      "id": "long_32k",
+      "kind": "generated",
+      "target_tokens": 32768,
+      "token_tolerance": 128,
+      "repetitions": 3,
+      "max_tokens": 256,
+      "needles": [
+        {"fraction": 0.34, "text": "FORGE-32K-7319"}
+      ],
+      "instruction": "The context contains one uppercase hyphenated retrieval code. Begin your response with that exact code, then explain in 150 to 220 words how you located it without inventing another code.",
+      "expected_contains": ["FORGE-32K-7319"]
+    },
+    {
+      "id": "near_limit",
+      "kind": "generated",
+      "target_context_ratio": 0.9,
+      "token_tolerance_ratio": 0.002,
+      "repetitions": 1,
+      "max_tokens": 128,
+      "needles": [
+        {"fraction": 0.08, "text": "ARC-NORTH-4931"},
+        {"fraction": 0.82, "text": "LUNAR-SOUTH-8276"}
+      ],
+      "instruction": "Two uppercase hyphenated retrieval codes occur far apart in the context. Begin with both codes in their original order, separated by one space. Then give a short explanation of where each appeared.",
+      "expected_contains": ["ARC-NORTH-4931", "LUNAR-SOUTH-8276"],
+      "expected_order": ["ARC-NORTH-4931", "LUNAR-SOUTH-8276"]
+    }
+  ]
+}

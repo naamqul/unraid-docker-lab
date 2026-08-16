@@ -333,6 +333,22 @@ The `ai` stack deploys Open WebUI. It shares the single Gluetun network
 namespace owned by `general`; Hermes and the former AI-specific Gluetun have
 been retired.
 
+The same stack contains opt-in, runner-specific profile services for the
+Arc-local Qwen3.8 evaluation. A normal `deploy-stack ai` omits them. Start only
+the runner being measured by targeting its service through Komodo, for example
+`deploy-stack ai qwen38-upstream`; stop it before targeting the next runner.
+The CPU candidates use lazy-loading llama-swap proxies and unload an idle model
+after ten minutes. OpenVINO candidates are direct llama-server processes and
+must be stopped explicitly after a trial. All candidates are capped at 38 GiB,
+bind their API only to Arc loopback, and mount the model directory read-only.
+
+Model artifacts live in the cache-only `models` user share. The canonical SMB
+and user-share path is `/mnt/user/models`; containers deliberately mount its
+physical cache path under `/mnt/cache/models` to avoid FUSE overhead while
+memory-mapping large GGUF files. The benchmark pins both the Hugging Face
+revision/checksums and the OCI image digests. Do not activate multiple large
+runners together on this no-swap host.
+
 Forge also has a **Files on host** stack named `forge-observability`, on server
 `Forge`, rooted at `/etc/komodo/stacks/forge-observability`. It is deployed and
 runs an outbound-only Beszel agent plus a GET-filtered Docker socket proxy; no
