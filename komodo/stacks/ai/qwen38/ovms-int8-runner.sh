@@ -32,10 +32,18 @@ for file in \
   openvino_language_model.xml \
   openvino_text_embeddings_model.bin \
   openvino_text_embeddings_model.xml \
+  openvino_vision_embeddings_model.bin \
+  openvino_vision_embeddings_model.xml \
+  openvino_vision_embeddings_pos_model.bin \
+  openvino_vision_embeddings_pos_model.xml \
+  openvino_vision_embeddings_merger_model.bin \
+  openvino_vision_embeddings_merger_model.xml \
   openvino_tokenizer.bin \
   openvino_tokenizer.xml \
   openvino_detokenizer.bin \
   openvino_detokenizer.xml \
+  processor_config.json \
+  preprocessor_config.json \
   SHA256SUMS; do
   if [ ! -f "$model_dir/$file" ]; then
     printf 'Required OpenVINO artifact file is missing: %s/%s\n' "$model_dir" "$file" >&2
