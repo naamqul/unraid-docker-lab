@@ -520,6 +520,8 @@ services:
       QWEN_CONTEXT: "131072"
       QWEN_CACHE_TYPE: f16
       QWEN_KV_OFFLOAD: "1"
+      QWEN_BATCH: "512"
+      QWEN_UBATCH: "128"
       QWEN_MTP: "0"
       QWEN_VISION: "0"
     ports:

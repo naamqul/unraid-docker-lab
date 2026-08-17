@@ -8,6 +8,9 @@ set -eu
 : "${QWEN_MTP:?QWEN_MTP is required}"
 : "${QWEN_VISION:?QWEN_VISION is required}"
 
+QWEN_BATCH=${QWEN_BATCH:-2048}
+QWEN_UBATCH=${QWEN_UBATCH:-512}
+
 set -- /app/llama-server \
   --model /models/Qwen3.8-27B-ABLITERATED-Q6_K.gguf \
   --alias "$QWEN_ALIAS" \
@@ -15,7 +18,7 @@ set -- /app/llama-server \
   --ctx-size "$QWEN_CONTEXT" --parallel 1 \
   --threads 16 --threads-batch 16 \
   --cache-type-k "$QWEN_CACHE_TYPE" --cache-type-v "$QWEN_CACHE_TYPE" \
-  --flash-attn on --batch-size 2048 --ubatch-size 512 \
+  --flash-attn on --batch-size "$QWEN_BATCH" --ubatch-size "$QWEN_UBATCH" \
   --cache-ram 0 --ctx-checkpoints 0 --no-cache-idle-slots \
   --fit off --no-context-shift --no-warmup --mmap \
   --jinja --metrics --slots --perf --timeout 3600
