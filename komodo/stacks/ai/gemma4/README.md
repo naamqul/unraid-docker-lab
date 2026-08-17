@@ -35,6 +35,8 @@ The vendored `chat_template.jinja` is byte-for-byte from the official
 `google/gemma-4-26B-A4B-it` repository at revision
 `4d7ae4984b7db7de8f8457170b3f1a419ee76d52`; its SHA-256 is
 `ae53464bf3be25802b3a5b37def7fd89667067d7577049b3b2d74c4d8de4c6d4`.
+Its attribution, pinned source, and Apache-2.0 license are retained in the
+adjacent `chat_template.PROVENANCE.md` and `chat_template.LICENSE` files.
 The explicit file attachment avoids relying on the older template embedded in
 the quantized GGUF. The official 1,120-token visual setting is enforced with
 `--image-max-tokens 1120`; actual image tokens can be lower after aspect-ratio
