@@ -39,7 +39,7 @@ models:
       --threads 8 --threads-batch 8
       --cpu-range 4-11 --cpu-strict 1
       --cpu-range-batch 4-11 --cpu-strict-batch 1
-      --batch-size 2048 --ubatch-size 512 --flash-attn on
+      --batch-size 2048 --ubatch-size 1152 --flash-attn on
       --cache-type-k f16 --cache-type-v f16
       --cache-ram 0 --ctx-checkpoints 0 --no-cache-idle-slots
       --spec-type draft-mtp --spec-draft-n-max 1 --spec-draft-p-min 0.0

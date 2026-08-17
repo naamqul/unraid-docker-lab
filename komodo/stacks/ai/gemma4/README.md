@@ -14,6 +14,7 @@ only the lightweight proxy resident when the model is idle.
 - CPU set and threads: quiet CPUs `4-11`, 8 decode and 8 batch threads
 - Context/cache: one native 262,144-token slot with F16 K/V cache
 - Vision: BF16 projector on CPU with a 1,120-token maximum visual budget
+- Vision microbatch: 1,152 tokens, large enough for one maximum-budget image
 - Chat template: Google Gemma 4 canonical template from official revision
   `4d7ae4984b7db7de8f8457170b3f1a419ee76d52`
 - Speculation: external MTP head, `draft-mtp`, `n_max=1`, `p_min=0`
