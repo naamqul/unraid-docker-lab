@@ -218,7 +218,7 @@ services:
   gemma4:
     <<: *gemma4-production
     container_name: gemma4
-    cpuset: "0-15"
+    cpuset: "4-11"
     ports:
       - "127.0.0.1:9315:8080"
     volumes:

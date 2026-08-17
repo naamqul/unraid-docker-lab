@@ -11,8 +11,8 @@ only the lightweight proxy resident when the model is idle.
 - Image: `ghcr.io/mostlygeek/llama-swap:cpu@sha256:f06135baf7195a2e3bb43fabff9e348a9f192e26644e6c758b090df965a2ab41`
 - Runtime: llama-swap v250 with upstream llama.cpp b10438,
   revision `9d57ce456c94d241dde672b2db9cf18879766568`
-- CPU set and threads: CPUs `0-15`, 16 decode and 16 batch threads
-- Context/cache: one 131,072-token slot with q8_0 K/V cache
+- CPU set and threads: quiet CPUs `4-11`, 8 decode and 8 batch threads
+- Context/cache: one native 262,144-token slot with F16 K/V cache
 - Vision: BF16 projector on CPU, with no operator-specified image-token cap
 - Speculation: external MTP head, `draft-mtp`, `n_max=1`, `p_min=0`
 - Resource policy: 32 GiB hard memory limit, no swap, CPU shares 256
@@ -20,14 +20,14 @@ only the lightweight proxy resident when the model is idle.
 - Loopback API: `http://127.0.0.1:9315/v1`
 - Open WebUI provider URL: `http://gemma4:8080/v1` on `caddy-backend`
 
-The primary model ID is `gemma4-26b-a4b-131k-mtp1`. Thinking is enabled and
+The primary model ID is `gemma4-26b-a4b-262k-mtp1`. Thinking is enabled and
 hard-bounded to 512 tokens so a pathological thought loop cannot consume the
 entire response allowance without producing visible content. llama-swap
-exposes `gemma4-26b-a4b-131k-mtp1-no-thinking` as a request-filter alias on the
+exposes `gemma4-26b-a4b-262k-mtp1-no-thinking` as a request-filter alias on the
 same loaded process; it sets `enable_thinking=false` and a zero reasoning
 budget. The aliases do not load duplicate model copies. Open WebUI prefixes
-this provider, so its selector shows `arc.gemma4-26b-a4b-131k-mtp1` and
-`arc.gemma4-26b-a4b-131k-mtp1-no-thinking`.
+this provider, so its selector shows `arc.gemma4-26b-a4b-262k-mtp1` and
+`arc.gemma4-26b-a4b-262k-mtp1-no-thinking`.
 
 ## Measured selection result
 
@@ -42,7 +42,7 @@ two are shown. All listed responses passed correctness and ended with
 | quiet, CPUs 4-11 | 18.50 tok/s | 48.58 tok/s | 17.18 tok/s | 17.68 tok/s |
 | balanced, CPUs 4-15 | 18.76 tok/s | 69.13 tok/s | 17.82 tok/s | 19.71 tok/s |
 | speed, CPUs 0-15 | 18.98 tok/s | 87.23 tok/s | 18.41 tok/s | 34.41 tok/s |
-| retained speed + MTP1 | 23.49 tok/s | 83.58 tok/s | 23.90 tok/s | 34.56 tok/s |
+| initial speed + MTP1 selection | 23.49 tok/s | 83.58 tok/s | 23.90 tok/s | 34.56 tok/s |
 
 The full-CPU policy materially improved prompt ingestion, especially for the
 uncapped 4K image, while its live contention probe remained healthy: seven
@@ -55,16 +55,18 @@ and 22.99 tok/s. The vision run accepted 20 of 20 and produced 23.90 tok/s,
 about 29.8% above the speed/base median. MTP2 produced 22.97 tok/s at 62.1%
 acceptance; MTP3 produced 19.61 tok/s at 43.4%. They were not retained.
 
-The final production combination also passed with thinking enabled. The
+The initial speed-policy production combination also passed with thinking enabled. The
 512-token cap produced visible text at 22.25 tok/s and correct 4K vision at
 22.18 tok/s, both with `finish_reason=stop`. End-to-end server time was about
 35.24 seconds for text and 36.26 seconds for vision. The no-thinking alias is
 the latency-oriented alternative.
 
-The service used about 22 GiB while loaded and remained above the 10 GiB host
-`MemAvailable` guard. Lunar stayed running and QGA-responsive; the B390 stayed
-bound to `vfio-pci`. These results establish idle-Lunar coexistence, not an
-active Moonlight-stream contention result.
+The service used about 22 GiB while the original 131K q8_0 configuration was
+loaded. The later operator-selected quiet 262K F16 configuration is expected
+to use about 25.6-25.9 GiB and must remain below the same 32 GiB service cap
+and 10 GiB host `MemAvailable` guard. Lunar stays running and QGA-responsive;
+the B390 stays bound to `vfio-pci`. These results establish idle-Lunar
+coexistence, not an active Moonlight-stream contention result.
 
 ## Pinned artifacts
 
