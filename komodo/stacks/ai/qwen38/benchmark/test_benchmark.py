@@ -6,6 +6,7 @@ import base64
 import importlib.util
 import json
 import pathlib
+import tempfile
 import unittest
 
 
@@ -84,6 +85,65 @@ class BenchmarkTests(unittest.TestCase):
             benchmark.default_native_base("http://localhost:8080/v1"),
             "http://localhost:8080",
         )
+
+    def test_ovms_v3_tokenizer_payload(self):
+        class RecordingClient:
+            request = None
+
+            def post_json(self, url, body):
+                self.request = (url, body)
+                return {"tokens": [1, 2, 3]}
+
+        client = RecordingClient()
+        self.assertEqual(
+            benchmark.tokenize_with_server(
+                client,
+                "http://localhost:8080",
+                "hello",
+                api="ovms-v3",
+                model="qwen38-ovms-int8-cpu-131k",
+            ),
+            3,
+        )
+        self.assertEqual(
+            client.request,
+            (
+                "http://localhost:8080/v3/tokenize",
+                {
+                    "model": "qwen38-ovms-int8-cpu-131k",
+                    "text": "hello",
+                    "add_special_tokens": False,
+                },
+            ),
+        )
+
+    def test_artifact_context_can_prove_at_least_runner_context(self):
+        class DiagnosticClient:
+            def get_json(self, _url):
+                return {}
+
+            def get_text(self, _url):
+                return ""
+
+        with tempfile.TemporaryDirectory() as directory:
+            config = pathlib.Path(directory) / "config.json"
+            config.write_text(
+                json.dumps({"text_config": {"max_position_embeddings": 262144}}),
+                encoding="utf-8",
+            )
+            evidence = benchmark.runner_preflight(
+                {
+                    "backend": "openvino-cpu",
+                    "native_base_url": "http://localhost:8080",
+                    "context": 131072,
+                    "context_check": "at_least",
+                    "context_evidence_file": str(config),
+                    "require_backend_evidence": False,
+                    "require_activity": False,
+                },
+                DiagnosticClient(),
+            )
+        self.assertEqual(evidence["reported_context_values"], [262144])
 
 
 if __name__ == "__main__":

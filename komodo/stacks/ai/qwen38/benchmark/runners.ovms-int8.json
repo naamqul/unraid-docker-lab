@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "template": "arc-ovms-int8",
+  "defaults": {
+    "request_timeout_seconds": 21600,
+    "min_free_gib": 8,
+    "require_memory_check": true,
+    "require_exact_context": true,
+    "context_check": "at_least",
+    "context_evidence_file": "/mnt/user/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-int8-ov/config.json",
+    "tokenizer_api": "ovms-v3",
+    "omit_body_fields": ["cache_prompt"],
+    "max_consecutive_errors": 1,
+    "verify_tls": true,
+    "require_mtp_stats": false,
+    "require_backend_evidence": true,
+    "require_activity": false
+  },
+  "runners": [
+    {
+      "name": "ovms-int8-cpu-131k",
+      "backend": "openvino-cpu",
+      "base_url": "http://127.0.0.1:9310/v3/chat/completions",
+      "native_base_url": "http://127.0.0.1:9310",
+      "model": "qwen38-ovms-int8-cpu-131k",
+      "context": 131072,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-ovms-int8-cpu-131k.startup.log",
+      "required_backend_regex": "QWEN38_OVMS_BACKEND device=CPU context=131072 cache_gib=6 kv=u8 prefix_cache=false",
+      "forbidden_backend_regex": "(?i)fallback.*GPU"
+    },
+    {
+      "name": "ovms-int8-gpu-131k",
+      "backend": "openvino-gpu",
+      "base_url": "http://127.0.0.1:9311/v3/chat/completions",
+      "native_base_url": "http://127.0.0.1:9311",
+      "model": "qwen38-ovms-int8-gpu-131k",
+      "context": 131072,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-ovms-int8-gpu-131k.startup.log",
+      "required_backend_regex": "QWEN38_OVMS_BACKEND device=GPU context=131072 cache_gib=6 kv=u8 prefix_cache=false",
+      "forbidden_backend_regex": "(?i)fallback.*CPU"
+    },
+    {
+      "name": "ovms-int8-cpu-262k",
+      "backend": "openvino-cpu",
+      "base_url": "http://127.0.0.1:9312/v3/chat/completions",
+      "native_base_url": "http://127.0.0.1:9312",
+      "model": "qwen38-ovms-int8-cpu-262k",
+      "context": 262144,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-ovms-int8-cpu-262k.startup.log",
+      "required_backend_regex": "QWEN38_OVMS_BACKEND device=CPU context=262144 cache_gib=10 kv=u8 prefix_cache=false",
+      "forbidden_backend_regex": "(?i)fallback.*GPU"
+    },
+    {
+      "name": "ovms-int8-gpu-262k",
+      "backend": "openvino-gpu",
+      "base_url": "http://127.0.0.1:9313/v3/chat/completions",
+      "native_base_url": "http://127.0.0.1:9313",
+      "model": "qwen38-ovms-int8-gpu-262k",
+      "context": 262144,
+      "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-ovms-int8-gpu-262k.startup.log",
+      "required_backend_regex": "QWEN38_OVMS_BACKEND device=GPU context=262144 cache_gib=10 kv=u8 prefix_cache=false",
+      "forbidden_backend_regex": "(?i)fallback.*CPU"
+    }
+  ]
+}

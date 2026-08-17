@@ -30,6 +30,7 @@ KNOWN_BACKENDS = {
     "upstream-cpu",
     "ik-cpu",
     "openvino-npu",
+    "openvino-cpu",
     "openvino-gpu",
     "intel-sycl",
     "vulkan",
@@ -490,11 +491,25 @@ def calibrate_prompt(
     return best[1], best[2], 8
 
 
-def tokenize_with_server(client: HttpClient, native_base: str, content: str) -> int:
-    payload = client.post_json(
-        join_url(native_base, "tokenize"),
-        {"content": content, "add_special": False, "parse_special": True},
-    )
+def tokenize_with_server(
+    client: HttpClient,
+    native_base: str,
+    content: str,
+    api: str = "llama",
+    model: str | None = None,
+) -> int:
+    if api == "llama":
+        url = join_url(native_base, "tokenize")
+        body = {"content": content, "add_special": False, "parse_special": True}
+    elif api == "ovms-v3":
+        if not model:
+            raise ValueError("OVMS tokenization requires a model name")
+        url = join_url(native_base, "v3/tokenize")
+        body = {"model": model, "text": content, "add_special_tokens": False}
+    else:
+        raise ValueError(f"Unsupported tokenizer API: {api}")
+
+    payload = client.post_json(url, body)
     tokens = payload.get("tokens") if isinstance(payload, dict) else None
     if not isinstance(tokens, list):
         raise RunnerRejected("Tokenizer endpoint did not return a tokens array")
@@ -648,14 +663,36 @@ def runner_preflight(runner: dict[str, Any], client: HttpClient) -> dict[str, An
         for value in values_for_key(evidence.get(name), "n_ctx"):
             if isinstance(value, int):
                 context_values.add(value)
+
+    context_evidence_file = runner.get("context_evidence_file")
+    if context_evidence_file:
+        try:
+            context_document = load_json(pathlib.Path(str(context_evidence_file)))
+            for value in values_for_key(context_document, "max_position_embeddings"):
+                if isinstance(value, int):
+                    context_values.add(value)
+            evidence["context_evidence_file_sha256"] = sha256_bytes(
+                pathlib.Path(str(context_evidence_file)).read_bytes()
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            evidence["context_evidence_file_error"] = str(exc)
+
     evidence["reported_context_values"] = sorted(context_values)
     if bool(runner.get("require_exact_context", True)):
         if not context_values:
-            raise RunnerRejected("Could not verify context from /slots or /props")
-        if int(runner["context"]) not in context_values:
+            raise RunnerRejected("Could not verify context from server or artifact evidence")
+        context_check = str(runner.get("context_check", "exact"))
+        expected_context = int(runner["context"])
+        if context_check == "exact":
+            context_matches = expected_context in context_values
+        elif context_check == "at_least":
+            context_matches = any(value >= expected_context for value in context_values)
+        else:
+            raise ValueError(f"Unsupported context_check: {context_check}")
+        if not context_matches:
             raise RunnerRejected(
-                f"Configured context {runner['context']} not found in server contexts "
-                f"{sorted(context_values)}"
+                f"Configured context {runner['context']} failed {context_check!r} check "
+                f"against {sorted(context_values)}"
             )
 
     metrics_text, metrics_error = safe_get_text(client, join_url(native, "metrics"))
@@ -730,7 +767,10 @@ def request_record(
         "stream": True,
         "stream_options": {"include_usage": True},
     }
-    body.update(corpus["sampling"])
+    sampling = dict(corpus["sampling"])
+    for field in runner.get("omit_body_fields", []):
+        sampling.pop(str(field), None)
+    body.update(sampling)
     body.update(runner.get("extra_body", {}))
     streamed = client.stream_chat(runner["chat_url"], body)
 
@@ -1058,9 +1098,15 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 check_local_safety(runner, arguments.abort_file)
                 runner_result["preflight"] = runner_preflight(runner, client)
-                tokenizer: Callable[[str], int] | None = lambda text, c=client, n=runner[
-                    "native_base_url"
-                ]: tokenize_with_server(c, n, text)
+                tokenizer: Callable[[str], int] | None = (
+                    lambda text, c=client, r=runner: tokenize_with_server(
+                        c,
+                        r["native_base_url"],
+                        text,
+                        api=str(r.get("tokenizer_api", "llama")),
+                        model=str(r["model"]),
+                    )
+                )
                 # Verify tokenizer once; failure becomes an unavailable tokenizer, not a hidden estimate.
                 try:
                     tokenizer("tokenizer preflight")

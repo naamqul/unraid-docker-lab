@@ -84,6 +84,37 @@ x-qwen38-openvino-f16: &qwen38-openvino-f16
       max-size: 20m
       max-file: "3"
 
+x-qwen38-ovms-int8: &qwen38-ovms-int8
+  image: openvino/model_server@sha256:7eb60804f86d7f47fd278a0cc1958fde5f8493534062ae69bef27dc5ba439cf2
+  init: true
+  restart: "no"
+  mem_limit: 38g
+  memswap_limit: 38g
+  entrypoint:
+    - /bin/sh
+    - /bench/ovms-int8-runner.sh
+  volumes:
+    - ./qwen38/ovms-int8-runner.sh:/bench/ovms-int8-runner.sh:ro
+    - /mnt/user/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-int8-ov:/model:ro
+  networks:
+    - caddy-backend
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 2m
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/v2/health/ready"]
+    start_period: 30m
+    interval: 30s
+    timeout: 5s
+    retries: 3
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "3"
+
 services:
   open-webui:
     container_name: open-webui
@@ -526,6 +557,58 @@ services:
       QWEN_VISION: "0"
     ports:
       - "127.0.0.1:9309:8080"
+
+  qwen38-ovms-int8-cpu-131k:
+    <<: *qwen38-ovms-int8
+    container_name: qwen38-ovms-int8-cpu-131k
+    profiles: [qwen38-ovms-int8-cpu-131k]
+    environment:
+      QWEN_DEVICE: CPU
+      QWEN_CONTEXT: "131072"
+      QWEN_CACHE_GIB: "6"
+      QWEN_ALIAS: qwen38-ovms-int8-cpu-131k
+    ports:
+      - "127.0.0.1:9310:8080"
+
+  qwen38-ovms-int8-gpu-131k:
+    <<: *qwen38-ovms-int8
+    container_name: qwen38-ovms-int8-gpu-131k
+    profiles: [qwen38-ovms-int8-gpu-131k]
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      QWEN_DEVICE: GPU
+      QWEN_CONTEXT: "131072"
+      QWEN_CACHE_GIB: "6"
+      QWEN_ALIAS: qwen38-ovms-int8-gpu-131k
+    ports:
+      - "127.0.0.1:9311:8080"
+
+  qwen38-ovms-int8-cpu-262k:
+    <<: *qwen38-ovms-int8
+    container_name: qwen38-ovms-int8-cpu-262k
+    profiles: [qwen38-ovms-int8-cpu-262k]
+    environment:
+      QWEN_DEVICE: CPU
+      QWEN_CONTEXT: "262144"
+      QWEN_CACHE_GIB: "10"
+      QWEN_ALIAS: qwen38-ovms-int8-cpu-262k
+    ports:
+      - "127.0.0.1:9312:8080"
+
+  qwen38-ovms-int8-gpu-262k:
+    <<: *qwen38-ovms-int8
+    container_name: qwen38-ovms-int8-gpu-262k
+    profiles: [qwen38-ovms-int8-gpu-262k]
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      QWEN_DEVICE: GPU
+      QWEN_CONTEXT: "262144"
+      QWEN_CACHE_GIB: "10"
+      QWEN_ALIAS: qwen38-ovms-int8-gpu-262k
+    ports:
+      - "127.0.0.1:9313:8080"
 
 networks:
   caddy-backend:
