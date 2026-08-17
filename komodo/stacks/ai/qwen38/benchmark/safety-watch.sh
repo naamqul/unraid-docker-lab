@@ -15,7 +15,7 @@ abort_file=$2
 min_free_gib=${3:-${MIN_FREE_GIB:-8}}
 
 case "$service" in
-  qwen38-upstream|qwen38-sycl|qwen38-vulkan|qwen38-ik|qwen38-openvino-262k-vision|qwen38-openvino-262k-text|qwen38-openvino-131k-vision|qwen38-openvino-131k-text|qwen38-openvino-gpu-262k-text|qwen38-openvino-gpu-131k-text|qwen38-openvino-gpu-262k-mtp1|qwen38-openvino-gpu-131k-mtp1|qwen38-openvino-gpu-262k-vision|qwen38-openvino-gpu-131k-vision|qwen38-openvino-f16-cpu-131k-text)
+  qwen38-upstream|qwen38-sycl|qwen38-vulkan|qwen38-ik|qwen38-openvino-262k-vision|qwen38-openvino-262k-text|qwen38-openvino-131k-vision|qwen38-openvino-131k-text|qwen38-openvino-gpu-262k-text|qwen38-openvino-gpu-131k-text|qwen38-openvino-gpu-262k-mtp1|qwen38-openvino-gpu-131k-mtp1|qwen38-openvino-gpu-262k-vision|qwen38-openvino-gpu-131k-vision|qwen38-openvino-f16-cpu-131k-text|qwen38-openvino-q8-cpukv-cpu-131k-text)
     ;;
   *)
     printf 'Refusing unknown service: %s\n' "$service" >&2
