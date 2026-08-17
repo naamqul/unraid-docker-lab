@@ -85,7 +85,10 @@ if ! (cd "$model_dir" && sha256sum --check --strict SHA256SUMS); then
   exit 65
 fi
 
-printf 'QWEN38_OVMS_BACKEND device=%s context=%s cache_gib=%s kv=u8 prefix_cache=false model=%s\n' \
+OVMS_GRAPH_QUEUE_OFF=1
+export OVMS_GRAPH_QUEUE_OFF
+
+printf 'QWEN38_OVMS_BACKEND device=%s context=%s cache_gib=%s kv=u8 prefix_cache=false graph_queue=off model=%s\n' \
   "$device" "$context" "$cache_gib" "$alias"
 
 exec /ovms/bin/ovms \
