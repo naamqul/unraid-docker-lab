@@ -1,0 +1,51 @@
+healthCheckTimeout: 3600
+logLevel: info
+logToStdout: both
+sendLoadingState: true
+includeAliasesInList: true
+globalTTL: 600
+startPort: 10001
+
+models:
+  gemma4-26b-a4b-131k-mtp1:
+    name: Gemma 4 26B A4B 131K MTP1
+    description: CPU-only Gemma 4 multimodal model on Arc; thinking is bounded to 512 tokens.
+    useModelName: gemma4-26b-a4b-131k-mtp1
+    capabilities:
+      in:
+        - text
+        - image
+      out:
+        - text
+      context: 131072
+    filters:
+      setParamsByID:
+        "${MODEL_ID}":
+          thinking_budget_tokens: 512
+          chat_template_kwargs:
+            enable_thinking: true
+        "${MODEL_ID}-no-thinking":
+          thinking_budget_tokens: 0
+          chat_template_kwargs:
+            enable_thinking: false
+    cmd: >-
+      /app/llama-server --port ${PORT}
+      --model /models/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf
+      --mmproj /models/mmproj-Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-BF16.gguf
+      --spec-draft-model /models/mtp-gemma-4-26B-A4B-it.gguf
+      --alias gemma4-26b-a4b-131k-mtp1
+      --host 127.0.0.1 --parallel 1 --ctx-size 131072
+      --gpu-layers 0 --no-mmproj-offload
+      --threads 16 --threads-batch 16
+      --cpu-range 0-15 --cpu-strict 1
+      --cpu-range-batch 0-15 --cpu-strict-batch 1
+      --batch-size 2048 --ubatch-size 512 --flash-attn on
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --cache-ram 0 --ctx-checkpoints 0 --no-cache-idle-slots
+      --spec-type draft-mtp --spec-draft-n-max 1 --spec-draft-p-min 0.0
+      --spec-draft-threads 16 --spec-draft-threads-batch 16
+      --spec-draft-cpu-range 0-15 --spec-draft-cpu-strict 1
+      --spec-draft-cpu-mask-batch 0xffff --spec-draft-cpu-strict-batch 1
+      --fit off --no-context-shift --no-warmup --mmap
+      --jinja --metrics --slots --perf --timeout 3600
+    checkEndpoint: /health

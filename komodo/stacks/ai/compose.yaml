@@ -148,6 +148,28 @@ x-qwen38-ovms-int8-npu: &qwen38-ovms-int8-npu
       max-size: 20m
       max-file: "3"
 
+x-gemma4-production: &gemma4-production
+  image: ghcr.io/mostlygeek/llama-swap:cpu@sha256:f06135baf7195a2e3bb43fabff9e348a9f192e26644e6c758b090df965a2ab41
+  init: true
+  restart: unless-stopped
+  mem_limit: 32g
+  memswap_limit: 32g
+  oom_score_adj: 500
+  # Keep inference subordinate if it competes with interactive host work.
+  cpu_shares: 256
+  networks:
+    - caddy-backend
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 2m
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "3"
+
 services:
   open-webui:
     container_name: open-webui
@@ -190,6 +212,24 @@ services:
       options:
         max-size: 20m
         max-file: "3"
+
+  # Retained CPU-only Gemma 4 router. llama-swap keeps the proxy small while
+  # idle and unloads the single model process after ten minutes.
+  gemma4:
+    <<: *gemma4-production
+    container_name: gemma4
+    cpuset: "0-15"
+    ports:
+      - "127.0.0.1:9315:8080"
+    volumes:
+      - ./gemma4/production.yaml:/app/config.yaml:ro
+      - /mnt/cache/models/HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP--f9093662a2e7ae0503f637088bc96f77a1a70c83:/models:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      start_period: 30s
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   qwen38-sycl:
     container_name: qwen38-sycl

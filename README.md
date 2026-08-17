@@ -145,6 +145,7 @@ The primary, publicly trusted names are:
 | `searxng.arc.bonfireboogie.com` | `gluetun:8080` |
 | `neko.arc.bonfireboogie.com` | Neko Brave UI/signaling through shared VPN namespace (`gluetun:8081`) |
 | `open-webui.arc.bonfireboogie.com` | Open WebUI through shared VPN namespace (`gluetun:3000`) |
+| `llama-swap.arc.bonfireboogie.com` | Open WebUI alias for testing the Arc Gemma 4 provider (`gluetun:3000`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 | `llama-swap.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:9292` |
 | `unsloth.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:8188` |
@@ -329,9 +330,11 @@ printf '\n' | docker exec -i komodo km execute deploy-stack jellyfin
 printf '\n' | docker exec -i komodo km execute deploy-stack forge-observability
 ```
 
-The `ai` stack deploys Open WebUI. It shares the single Gluetun network
-namespace owned by `general`; Hermes and the former AI-specific Gluetun have
-been retired.
+The `ai` stack deploys Open WebUI and the Arc CPU-only Gemma 4 llama-swap
+proxy. Open WebUI shares the single Gluetun network namespace owned by
+`general` and reaches Gemma over `caddy-backend`; Hermes and the former
+AI-specific Gluetun have been retired. The Gemma child unloads after ten idle
+minutes while its small proxy remains available.
 
 The same stack contains opt-in, runner-specific profile services for the
 Arc-local Qwen3.8 evaluation. A normal `deploy-stack ai` omits them. Start only
@@ -557,10 +560,10 @@ configured to use a dedicated dashboard account to show Arc's CPU, memory,
 disk, and network metrics. Store that account only as
 `HOMEPAGE_BESZEL_USERNAME` and `HOMEPAGE_BESZEL_PASSWORD` in the ignored
 `general/.env`; Homepage receives them through `HOMEPAGE_VAR_*` substitutions.
-The AI Lab section also links to llama-swap and Unsloth on Blackwell. The Remote
-Access section links to Vibepollo's native Windows admin UI. These entries
-intentionally omit Arc Docker status fields because they do not run in Arc's
-Docker engine.
+The AI Lab section also links to the Arc Gemma/Open WebUI alias plus
+llama-swap and Unsloth on Blackwell. The Remote Access section links to
+Vibepollo's native Windows admin UI. The Blackwell entries intentionally omit
+Arc Docker status fields because they do not run in Arc's Docker engine.
 
 ## Jellyfin
 

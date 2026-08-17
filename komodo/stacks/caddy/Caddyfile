@@ -101,7 +101,7 @@ arc.bonfireboogie.com {
 		reverse_proxy gluetun:8081
 	}
 
-	@open_webui host open-webui.arc.bonfireboogie.com
+	@open_webui host open-webui.arc.bonfireboogie.com llama-swap.arc.bonfireboogie.com
 	handle @open_webui {
 		reverse_proxy gluetun:3000
 	}
