@@ -63,8 +63,8 @@ x-qwen38-openvino-f16: &qwen38-openvino-f16
   image: ghcr.io/ggml-org/llama.cpp:server-openvino@sha256:04862a03faabcb1338d0e17d6cbd1ec6e994e17a69af63ed3da40d55d28e8ce4
   init: true
   restart: "no"
-  mem_limit: 40g
-  memswap_limit: 40g
+  mem_limit: 46g
+  memswap_limit: 46g
   entrypoint:
     - /bin/sh
     - /bench/openvino-f16-runner.sh
