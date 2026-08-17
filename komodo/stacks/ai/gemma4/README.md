@@ -8,13 +8,14 @@ only the lightweight proxy resident when the model is idle.
 ## Retained configuration
 
 - Service/container: `gemma4`
-- Image: `ghcr.io/mostlygeek/llama-swap:cpu@sha256:f06135baf7195a2e3bb43fabff9e348a9f192e26644e6c758b090df965a2ab41`
-- Runtime: llama-swap v250 with upstream llama.cpp b10438,
-  revision `9d57ce456c94d241dde672b2db9cf18879766568`
+- Image: moving CPU channel `ghcr.io/mostlygeek/llama-swap:cpu`, resolved and
+  validated at `sha256:c88bef25891a575e4e2bb09cf7b11940a03b6c253f4fe6b14e87c37046054564`
+- Runtime: llama-swap v250 with upstream llama.cpp b10454,
+  revision `4df29be4f4c3673f428170fda944a5b19f743bb8`
 - CPU set and threads: quiet CPUs `4-11`, 8 decode and 8 batch threads
 - Context/cache: one native 262,144-token slot with F16 K/V cache
 - Vision: BF16 projector on CPU with a 1,120-token maximum visual budget
-- Vision microbatch: 1,152 tokens, large enough for one maximum-budget image
+- Batch/microbatch: 2,048 logical and 2,048 physical tokens
 - Chat template: Google Gemma 4 canonical template from official revision
   `4d7ae4984b7db7de8f8457170b3f1a419ee76d52`
 - Speculation: external MTP head, `draft-mtp`, `n_max=1`, `p_min=0`
@@ -48,7 +49,8 @@ preserving resize and 48-pixel grid alignment.
 
 ## Measured selection result
 
-The 2026-08-17 selection used the same deterministic text request and native
+The initial 2026-08-17 selection, before the b10454 image refresh, used the
+same deterministic text request and native
 4096 x 4096 synthetic vision input for every candidate. Rates below are
 server-reported; base-policy values are medians of two measured requests where
 two are shown. All listed responses passed correctness and ended with
@@ -108,10 +110,11 @@ and the calibration bars, with nonempty reasoning, visible content, and
 
 The first 1,120-budget attempt exposed llama.cpp's non-causal vision constraint:
 the previous 512-token microbatch was smaller than the image embedding and the
-model child exited. Raising `--ubatch-size` to 1,152 fixed the request while
-avoiding the extra allocation of a 1,536- or 2,048-token microbatch. The final
-vision-run cgroup peak was 17.02 GiB, sampled host `MemAvailable` stayed above
-28.10 GiB, and all cgroup OOM counters remained zero.
+model child exited. Raising `--ubatch-size` to 1,152 fixed the request and
+established the safe minimum; the later b10454 A/B below determined whether a
+larger production value was worth its allocation. The b10438 vision-run cgroup
+peak was 17.02 GiB, sampled host `MemAvailable` stayed above 28.10 GiB, and all
+cgroup OOM counters remained zero.
 
 This is still not the fully populated 262K cache footprint. The exact-fit
 projection, including the larger vision microbatch, is about 26.4-26.7 GiB as
@@ -126,6 +129,43 @@ and speculative acceptance beyond 131K therefore remain unverified.
 Lunar stayed running and QGA-responsive; the B390 stayed bound to `vfio-pci`.
 These results establish idle-Lunar coexistence, not an active Moonlight-stream
 contention result.
+
+## Refreshed b10454 batch result
+
+The refreshed image was tested with the same CPU set, artifacts, 262K F16
+slot, MTP1, and official template. Each candidate received one warm-up followed
+by three exact 4,096-token, uncached `Gemma (Instruct)` prefills with one output
+token:
+
+| Batch / microbatch | Prefill runs | Median | Median end to end |
+| --- | --- | ---: | ---: |
+| 2,048 / 1,152 | 34.14, 33.79, 37.43 tok/s | 34.14 tok/s | 120.02 s |
+| 2,048 / 2,048 | 38.61, 38.94, 39.00 tok/s | 38.94 tok/s | 105.21 s |
+
+The 2,048-token physical microbatch improved median prompt ingestion by 14.07%
+and is retained. Raising the logical batch above its existing 2,048-token
+default was not justified: the CPU-only, single-slot path still executes 4K
+input as two logical batches, and no additional measured gain supported a
+larger value.
+
+The retained candidate then passed both aliases and a native 4096 x 4096
+vision gate at the 1,120-token visual budget. Instruct returned visible content
+without reasoning at 20.22 generation tok/s; Thinking returned reasoning plus
+visible content at 21.61 tok/s. Vision used 1,142 prompt tokens, reached 9.42
+prefill and 15.19 generation tok/s, completed in 124.21 seconds, and correctly
+reported all four colors and the white divider. Every gate ended with
+`finish_reason=stop`.
+
+The measured 2,048-token vision peak was 17.68 GiB and sampled host
+`MemAvailable` stayed at or above 28.18 GiB; every cgroup memory and OOM counter
+remained zero. The exact b10454 estimator attributes 5,720 MiB to context and
+2,130 MiB to compute at this setting, 1,082 MiB more than microbatch 1,152.
+The projected fully populated service footprint is therefore about 27.5-27.8
+GiB, leaving about 4.2-4.5 GiB below the 32 GiB cap. The separate 10 GiB host
+availability guard still applies.
+
+Evidence is under
+`/mnt/cache/models/benchmark-results/gemma4-26b-a4b-f9093662/20260817T151000Z-ubatch-b10454`.
 
 ## Pinned artifacts
 
