@@ -89,18 +89,35 @@ benchmark:
 | --- | ---: | ---: | ---: |
 | no-thinking text | 23.15 tok/s | 45.32 tok/s | 5 / 5 |
 | bounded-thinking text | 18.92 tok/s | 48.62 tok/s | 334 / 395 |
-| bounded-thinking 4K vision | 18.36 tok/s | 18.14 tok/s | 263 / 290 |
+| bounded-thinking 4K vision (legacy 280-token image budget) | 18.36 tok/s | 18.14 tok/s | 263 / 290 |
 
 All three responses ended with `finish_reason=stop`; the thinking requests had
 nonempty reasoning and visible content, and the vision answer identified all
 four panels, the divider, and the calibration bars. The same single
 `llama-server` child served both aliases.
 
-The short-prompt cgroup peak was 16.08 GiB and sampled host `MemAvailable`
-never fell below 29.03 GiB. All cgroup OOM counters remained zero. This is not
-the fully populated 262K cache footprint: the exact-fit projection remains
-about 25.6-25.9 GiB as KV pages are touched, so the 32 GiB service cap and 10
-GiB host guard remain mandatory. No near-limit prompt was run.
+After attaching the current official chat template and increasing the visual
+budget, the same 4096 x 4096 fixture passed through the public Caddy endpoint
+with 1,193 prompt tokens. Its square image resolves to 1,089 visual soft
+tokens under Gemma 4's 48-pixel grid alignment. Prefill was 9.12 tok/s,
+generation was 16.09 tok/s, MTP accepted 140 of 150 drafts (93.3%), server
+processing took 148.82 seconds, and end-to-end time was 160.27 seconds. The
+answer correctly identified all four shapes and colors, the white divider,
+and the calibration bars, with nonempty reasoning, visible content, and
+`finish_reason=stop`.
+
+The first 1,120-budget attempt exposed llama.cpp's non-causal vision constraint:
+the previous 512-token microbatch was smaller than the image embedding and the
+model child exited. Raising `--ubatch-size` to 1,152 fixed the request while
+avoiding the extra allocation of a 1,536- or 2,048-token microbatch. The final
+vision-run cgroup peak was 17.02 GiB, sampled host `MemAvailable` stayed above
+28.10 GiB, and all cgroup OOM counters remained zero.
+
+This is still not the fully populated 262K cache footprint. The exact-fit
+projection, including the larger vision microbatch, is about 26.4-26.7 GiB as
+KV pages are touched, leaving roughly 5.3-5.6 GiB below the 32 GiB service
+cap. The 10 GiB host guard remains mandatory, and no near-limit prompt was
+run.
 
 The main model declares 262K context, but the external MTP path logs a warning
 that its 262K sequence exceeds a 131K training context. Long-position quality
