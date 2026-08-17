@@ -87,7 +87,7 @@
       "model": "qwen38-ovms-int8-npu-1k",
       "context": 1152,
       "backend_evidence_file": "/tmp/qwen38-benchmark/qwen38-ovms-int8-npu-1k.startup.log",
-      "required_backend_regex": "(?is)QWEN38_OVMS_BACKEND device=NPU pipeline=VLM.*QWEN38_OVMS_DEVICE_MAP accel0=present dri=absent target=NPU.*Model: VLM language model(?:(?!Model:).)*EXECUTION_DEVICES[^\\n]*NPU",
+      "required_backend_regex": "(?is)QWEN38_OVMS_BACKEND device=NPU platform=5010 pipeline=VLM.*QWEN38_OVMS_DEVICE_MAP accel0=present dri=absent target=NPU.*Model: VLM language model(?:(?!Model:).)*EXECUTION_DEVICES[^\\n]*NPU",
       "forbidden_backend_regex": "(?is)(target(?:_device)?[^\\n]*(AUTO|HETERO)|fallback[^\\n]*(CPU|GPU)|Model: VLM language model(?:(?!Model:).)*EXECUTION_DEVICES[^\\n]*(CPU|GPU))",
       "require_activity": true,
       "activity_files": [

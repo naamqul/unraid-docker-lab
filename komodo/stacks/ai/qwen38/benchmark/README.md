@@ -116,7 +116,8 @@ The `qwen38-ovms-int8-npu-1k` profile is deliberately separate. OpenVINO's NPU
 contract requires symmetric INT4/NF4 weights, so the existing INT8 IR is only
 given a bounded compatibility probe. It uses the sequential `VLM` pipeline,
 maps only `/dev/accel/accel0`, refuses startup if `/dev/dri` is visible, and
-caps the first trial at 1024 prompt plus 128 response tokens. A result is
+pins the compiler to Panther Lake NPU platform `5010` after verifying Arc's
+PCI ID, then caps the first trial at 1024 prompt plus 128 response tokens. A result is
 rejected unless startup evidence names NPU without AUTO/HETERO/CPU/GPU fallback
 and the host NPU busy-time counter increases during inference. It must not be
 reported as a 131K/262K result or as a supported NPU deployment.

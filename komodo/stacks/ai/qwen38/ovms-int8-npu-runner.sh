@@ -7,12 +7,21 @@ model_dir=/model
 alias=${QWEN_ALIAS:?QWEN_ALIAS is required}
 max_prompt_len=${QWEN_MAX_PROMPT_LEN:?QWEN_MAX_PROMPT_LEN is required}
 min_response_len=${QWEN_MIN_RESPONSE_LEN:?QWEN_MIN_RESPONSE_LEN is required}
+npu_platform=${QWEN_NPU_PLATFORM:?QWEN_NPU_PLATFORM is required}
 
 case "$max_prompt_len:$min_response_len" in
   1024:128) ;;
   *)
     printf 'Refusing unreviewed NPU prompt/response pair: prompt=%s response=%s\n' \
       "$max_prompt_len" "$min_response_len" >&2
+    exit 64
+    ;;
+esac
+
+case "$npu_platform" in
+  5010) ;;
+  *)
+    printf 'Refusing unreviewed NPU platform: %s\n' "$npu_platform" >&2
     exit 64
     ;;
 esac
@@ -71,8 +80,8 @@ OPENVINO_LOG_LEVEL=4
 OVMS_GRAPH_QUEUE_OFF=1
 export OPENVINO_LOG_LEVEL OVMS_GRAPH_QUEUE_OFF
 
-printf 'QWEN38_OVMS_BACKEND device=NPU pipeline=VLM max_prompt_len=%s min_response_len=%s precision=int8-experimental fallback=forbidden graph_queue=off model=%s\n' \
-  "$max_prompt_len" "$min_response_len" "$alias"
+printf 'QWEN38_OVMS_BACKEND device=NPU platform=%s pipeline=VLM max_prompt_len=%s min_response_len=%s precision=int8-experimental fallback=forbidden graph_queue=off model=%s\n' \
+  "$npu_platform" "$max_prompt_len" "$min_response_len" "$alias"
 printf 'QWEN38_OVMS_DEVICE_MAP accel0=present dri=absent target=NPU\n'
 
 exec /ovms/bin/ovms \
@@ -86,4 +95,4 @@ exec /ovms/bin/ovms \
   --target_device NPU \
   --pipeline_type VLM \
   --max_prompt_len "$max_prompt_len" \
-  --plugin_config "{\"DEVICE_PROPERTIES\":{\"NPU\":{\"MAX_PROMPT_LEN\":$max_prompt_len,\"MIN_RESPONSE_LEN\":$min_response_len}}}"
+  --plugin_config "{\"DEVICE_PROPERTIES\":{\"NPU\":{\"NPU_PLATFORM\":\"$npu_platform\",\"MAX_PROMPT_LEN\":$max_prompt_len,\"MIN_RESPONSE_LEN\":$min_response_len}}}"
