@@ -145,7 +145,7 @@ The primary, publicly trusted names are:
 | `searxng.arc.bonfireboogie.com` | `gluetun:8080` |
 | `neko.arc.bonfireboogie.com` | Neko Brave UI/signaling through shared VPN namespace (`gluetun:8081`) |
 | `open-webui.arc.bonfireboogie.com` | Open WebUI through shared VPN namespace (`gluetun:3000`) |
-| `llama-swap.arc.bonfireboogie.com` | Open WebUI alias for testing the Arc Gemma 4 provider (`gluetun:3000`) |
+| `llama-swap.arc.bonfireboogie.com` | Arc Gemma 4 llama-swap UI and API (`gemma4:8080`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 | `llama-swap.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:9292` |
 | `unsloth.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:8188` |

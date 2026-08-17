@@ -71,7 +71,7 @@
     - Gemma 4 on Arc:
         icon: mdi-brain
         href: https://llama-swap.arc.bonfireboogie.com
-        description: CPU multimodal model through Open WebUI
+        description: llama-swap UI for the CPU multimodal model
         server: arc-docker
         container: gemma4
     - Llama Swap:

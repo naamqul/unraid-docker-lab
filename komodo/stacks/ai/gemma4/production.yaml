@@ -8,7 +8,6 @@ startPort: 10001
 
 models:
   "Gemma (Thinking)":
-    name: Gemma (Thinking)
     description: Quiet CPU-only Gemma 4 multimodal model on Arc with bounded thinking and a 1120-token visual budget.
     useModelName: Gemma (Thinking)
     capabilities:

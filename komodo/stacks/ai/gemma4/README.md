@@ -30,6 +30,9 @@ same loaded process; it sets `enable_thinking=false` and a zero reasoning
 budget. The aliases do not load duplicate model copies. The Arc Open WebUI
 provider deliberately has no model-ID prefix, so its selector shows exactly
 `Gemma (Thinking)` and `Gemma (Instruct)`.
+The optional llama-swap display-name field is deliberately omitted so clients
+fall back to each distinct model ID instead of giving both aliases the base
+model's display name.
 
 The vendored `chat_template.jinja` is byte-for-byte from the official
 `google/gemma-4-26B-A4B-it` repository at revision
