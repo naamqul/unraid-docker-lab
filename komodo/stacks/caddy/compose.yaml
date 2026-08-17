@@ -11,6 +11,9 @@ services:
       context: .
       dockerfile: Dockerfile
       pull: true
+      # Arc's Docker default bridge is registered but has no docker0 device;
+      # use host networking only for the ephemeral xcaddy build step.
+      network: host
     restart: unless-stopped
     environment:
       CADDY_LAN_IP: ${CADDY_LAN_IP}
