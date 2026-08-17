@@ -747,6 +747,21 @@ def fetch_metrics(client: HttpClient, native: str) -> dict[str, float]:
         return {}
 
 
+def completion_limit(runner: dict[str, Any], max_tokens: int) -> dict[str, int]:
+    """Build the backend-specific completion-limit field.
+
+    OVMS 2026.4 accepts both names at the HTTP schema layer, but Qwen3.5-family
+    VLM continuous batching can return an empty generation (and then a
+    MediaPipe timestamp mismatch) when ``max_tokens`` is used.  Keep the
+    default for llama-compatible runners and allow OVMS profiles to select the
+    current OpenAI field explicitly.
+    """
+    field = str(runner.get("completion_token_field", "max_tokens"))
+    if field not in {"max_tokens", "max_completion_tokens"}:
+        raise ValueError(f"Unsupported completion token field: {field}")
+    return {field: int(max_tokens)}
+
+
 def request_record(
     runner: dict[str, Any],
     corpus: dict[str, Any],
@@ -763,10 +778,10 @@ def request_record(
     body: dict[str, Any] = {
         "model": runner["model"],
         "messages": build_messages(corpus, workload),
-        "max_tokens": workload["max_tokens"],
         "stream": True,
         "stream_options": {"include_usage": True},
     }
+    body.update(completion_limit(runner, workload["max_tokens"]))
     sampling = dict(corpus["sampling"])
     for field in runner.get("omit_body_fields", []):
         sampling.pop(str(field), None)

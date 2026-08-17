@@ -9,6 +9,7 @@
     "context_check": "at_least",
     "context_evidence_file": "/mnt/user/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-int8-ov/config.json",
     "tokenizer_api": "ovms-v3",
+    "completion_token_field": "max_completion_tokens",
     "omit_body_fields": ["cache_prompt"],
     "max_consecutive_errors": 1,
     "verify_tls": true,

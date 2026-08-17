@@ -117,6 +117,19 @@ class BenchmarkTests(unittest.TestCase):
             ),
         )
 
+    def test_backend_specific_completion_limit(self):
+        self.assertEqual(benchmark.completion_limit({}, 32), {"max_tokens": 32})
+        self.assertEqual(
+            benchmark.completion_limit(
+                {"completion_token_field": "max_completion_tokens"}, 64
+            ),
+            {"max_completion_tokens": 64},
+        )
+        with self.assertRaises(ValueError):
+            benchmark.completion_limit(
+                {"completion_token_field": "unsupported"}, 64
+            )
+
     def test_artifact_context_can_prove_at_least_runner_context(self):
         class DiagnosticClient:
             def get_json(self, _url):
