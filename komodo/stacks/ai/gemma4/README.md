@@ -61,12 +61,37 @@ The initial speed-policy production combination also passed with thinking enable
 35.24 seconds for text and 36.26 seconds for vision. The no-thinking alias is
 the latency-oriented alternative.
 
-The service used about 22 GiB while the original 131K q8_0 configuration was
-loaded. The later operator-selected quiet 262K F16 configuration is expected
-to use about 25.6-25.9 GiB and must remain below the same 32 GiB service cap
-and 10 GiB host `MemAvailable` guard. Lunar stays running and QGA-responsive;
-the B390 stays bound to `vfio-pci`. These results establish idle-Lunar
-coexistence, not an active Moonlight-stream contention result.
+## Current 262K F16 verification
+
+The operator-selected quiet 262K F16 configuration was promoted on 2026-08-17
+and passed a guarded cold load plus both text aliases and the native 4096 x
+4096 vision request. These are single promotion smokes, not a new comparative
+benchmark:
+
+| Request | Generation | Prefill | MTP acceptance |
+| --- | ---: | ---: | ---: |
+| no-thinking text | 23.15 tok/s | 45.32 tok/s | 5 / 5 |
+| bounded-thinking text | 18.92 tok/s | 48.62 tok/s | 334 / 395 |
+| bounded-thinking 4K vision | 18.36 tok/s | 18.14 tok/s | 263 / 290 |
+
+All three responses ended with `finish_reason=stop`; the thinking requests had
+nonempty reasoning and visible content, and the vision answer identified all
+four panels, the divider, and the calibration bars. The same single
+`llama-server` child served both aliases.
+
+The short-prompt cgroup peak was 16.08 GiB and sampled host `MemAvailable`
+never fell below 29.03 GiB. All cgroup OOM counters remained zero. This is not
+the fully populated 262K cache footprint: the exact-fit projection remains
+about 25.6-25.9 GiB as KV pages are touched, so the 32 GiB service cap and 10
+GiB host guard remain mandatory. No near-limit prompt was run.
+
+The main model declares 262K context, but the external MTP path logs a warning
+that its 262K sequence exceeds a 131K training context. Long-position quality
+and speculative acceptance beyond 131K therefore remain unverified.
+
+Lunar stayed running and QGA-responsive; the B390 stayed bound to `vfio-pci`.
+These results establish idle-Lunar coexistence, not an active Moonlight-stream
+contention result.
 
 ## Pinned artifacts
 
