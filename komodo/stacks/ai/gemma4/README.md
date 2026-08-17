@@ -13,21 +13,32 @@ only the lightweight proxy resident when the model is idle.
   revision `9d57ce456c94d241dde672b2db9cf18879766568`
 - CPU set and threads: quiet CPUs `4-11`, 8 decode and 8 batch threads
 - Context/cache: one native 262,144-token slot with F16 K/V cache
-- Vision: BF16 projector on CPU, with no operator-specified image-token cap
+- Vision: BF16 projector on CPU with a 1,120-token maximum visual budget
+- Chat template: Google Gemma 4 canonical template from official revision
+  `4d7ae4984b7db7de8f8457170b3f1a419ee76d52`
 - Speculation: external MTP head, `draft-mtp`, `n_max=1`, `p_min=0`
 - Resource policy: 32 GiB hard memory limit, no swap, CPU shares 256
 - Model idle TTL: 600 seconds
 - Loopback API: `http://127.0.0.1:9315/v1`
 - Open WebUI provider URL: `http://gemma4:8080/v1` on `caddy-backend`
 
-The primary model ID is `gemma4-26b-a4b-262k-mtp1`. Thinking is enabled and
+The primary model ID is `Gemma (Thinking)`. Thinking is enabled and
 hard-bounded to 512 tokens so a pathological thought loop cannot consume the
 entire response allowance without producing visible content. llama-swap
-exposes `gemma4-26b-a4b-262k-mtp1-no-thinking` as a request-filter alias on the
+exposes `Gemma (Instruct)` as a request-filter alias on the
 same loaded process; it sets `enable_thinking=false` and a zero reasoning
-budget. The aliases do not load duplicate model copies. Open WebUI prefixes
-this provider, so its selector shows `arc.gemma4-26b-a4b-262k-mtp1` and
-`arc.gemma4-26b-a4b-262k-mtp1-no-thinking`.
+budget. The aliases do not load duplicate model copies. The Arc Open WebUI
+provider deliberately has no model-ID prefix, so its selector shows exactly
+`Gemma (Thinking)` and `Gemma (Instruct)`.
+
+The vendored `chat_template.jinja` is byte-for-byte from the official
+`google/gemma-4-26B-A4B-it` repository at revision
+`4d7ae4984b7db7de8f8457170b3f1a419ee76d52`; its SHA-256 is
+`ae53464bf3be25802b3a5b37def7fd89667067d7577049b3b2d74c4d8de4c6d4`.
+The explicit file attachment avoids relying on the older template embedded in
+the quantized GGUF. The official 1,120-token visual setting is enforced with
+`--image-max-tokens 1120`; actual image tokens can be lower after aspect-ratio
+preserving resize and 48-pixel grid alignment.
 
 ## Measured selection result
 

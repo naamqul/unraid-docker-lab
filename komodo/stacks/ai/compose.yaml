@@ -223,6 +223,7 @@ services:
       - "127.0.0.1:9315:8080"
     volumes:
       - ./gemma4/production.yaml:/app/config.yaml:ro
+      - ./gemma4/chat_template.jinja:/app/chat_template.jinja:ro
       - /mnt/cache/models/HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP--f9093662a2e7ae0503f637088bc96f77a1a70c83:/models:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]

@@ -7,10 +7,10 @@ globalTTL: 600
 startPort: 10001
 
 models:
-  gemma4-26b-a4b-262k-mtp1:
-    name: Gemma 4 26B A4B 262K MTP1
-    description: Quiet CPU-only Gemma 4 multimodal model on Arc; thinking is bounded to 512 tokens.
-    useModelName: gemma4-26b-a4b-262k-mtp1
+  "Gemma (Thinking)":
+    name: Gemma (Thinking)
+    description: Quiet CPU-only Gemma 4 multimodal model on Arc with bounded thinking and a 1120-token visual budget.
+    useModelName: Gemma (Thinking)
     capabilities:
       in:
         - text
@@ -20,11 +20,11 @@ models:
       context: 262144
     filters:
       setParamsByID:
-        "${MODEL_ID}":
+        "Gemma (Thinking)":
           thinking_budget_tokens: 512
           chat_template_kwargs:
             enable_thinking: true
-        "${MODEL_ID}-no-thinking":
+        "Gemma (Instruct)":
           thinking_budget_tokens: 0
           chat_template_kwargs:
             enable_thinking: false
@@ -32,8 +32,9 @@ models:
       /app/llama-server --port ${PORT}
       --model /models/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf
       --mmproj /models/mmproj-Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-BF16.gguf
+      --image-max-tokens 1120
       --spec-draft-model /models/mtp-gemma-4-26B-A4B-it.gguf
-      --alias gemma4-26b-a4b-262k-mtp1
+      --alias "Gemma (Thinking)"
       --host 127.0.0.1 --parallel 1 --ctx-size 262144
       --gpu-layers 0 --no-mmproj-offload
       --threads 8 --threads-batch 8
@@ -48,5 +49,6 @@ models:
       --spec-draft-cpu-range 4-11 --spec-draft-cpu-strict 1
       --spec-draft-cpu-mask-batch 0x0ff0 --spec-draft-cpu-strict-batch 1
       --fit off --no-context-shift --no-warmup --mmap
-      --jinja --metrics --slots --perf --timeout 3600
+      --jinja --chat-template-file /app/chat_template.jinja
+      --metrics --slots --perf --timeout 3600
     checkEndpoint: /health
