@@ -504,6 +504,27 @@ services:
     ports:
       - "127.0.0.1:9308:8080"
 
+  qwen38-openvino-f16-gpu-131k-text:
+    <<: *qwen38-openvino-f16
+    container_name: qwen38-openvino-f16-gpu-131k-text
+    profiles: [qwen38-openvino-f16-gpu-131k-text]
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      GGML_OPENVINO_DEVICE: GPU
+      GGML_OPENVINO_STATEFUL_EXECUTION: "0"
+      GGML_OPENVINO_REDUCE_COMPILE_MEM: "1"
+      GGML_OPENVINO_RELEASE_WEIGHTS: "0"
+      GGML_OPENVINO_PROFILING: "1"
+      QWEN_ALIAS: qwen38-openvino-f16-gpu-131k-text
+      QWEN_CONTEXT: "131072"
+      QWEN_CACHE_TYPE: f16
+      QWEN_KV_OFFLOAD: "1"
+      QWEN_MTP: "0"
+      QWEN_VISION: "0"
+    ports:
+      - "127.0.0.1:9309:8080"
+
 networks:
   caddy-backend:
     external: true
