@@ -3,6 +3,8 @@ name: jellyfin
 services:
   jellyfin:
     container_name: jellyfin
+    # Keep the current major as a migration guard; Jellyfin database upgrades
+    # are immediate and downgrades require restoring configuration state.
     image: jellyfin/jellyfin:${JELLYFIN_IMAGE_TAG:-10}
     user: "99:100"
     restart: unless-stopped

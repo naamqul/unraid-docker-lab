@@ -149,7 +149,9 @@ x-qwen38-ovms-int8-npu: &qwen38-ovms-int8-npu
       max-file: "3"
 
 x-gemma4-production: &gemma4-production
-  image: ghcr.io/mostlygeek/llama-swap:cpu@sha256:f06135baf7195a2e3bb43fabff9e348a9f192e26644e6c758b090df965a2ab41
+  # :cpu is llama-swap's current CPU-only channel. Model artifacts and the
+  # official chat template remain revision-pinned independently.
+  image: ghcr.io/mostlygeek/llama-swap:cpu
   init: true
   restart: unless-stopped
   mem_limit: 32g
