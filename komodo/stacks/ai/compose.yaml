@@ -115,6 +115,39 @@ x-qwen38-ovms-int8: &qwen38-ovms-int8
       max-size: 20m
       max-file: "3"
 
+x-qwen38-ovms-int8-npu: &qwen38-ovms-int8-npu
+  image: openvino/model_server@sha256:7eb60804f86d7f47fd278a0cc1958fde5f8493534062ae69bef27dc5ba439cf2
+  init: true
+  restart: "no"
+  mem_limit: 38g
+  memswap_limit: 38g
+  entrypoint:
+    - /bin/sh
+    - /bench/ovms-int8-npu-runner.sh
+  devices:
+    - /dev/accel/accel0:/dev/accel/accel0
+  volumes:
+    - ./qwen38/ovms-int8-npu-runner.sh:/bench/ovms-int8-npu-runner.sh:ro
+    - /mnt/user/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-int8-ov:/model:ro
+  networks:
+    - caddy-backend
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 2m
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/v2/health/ready"]
+    start_period: 20m
+    interval: 30s
+    timeout: 5s
+    retries: 3
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "3"
+
 services:
   open-webui:
     container_name: open-webui
@@ -609,6 +642,17 @@ services:
       QWEN_ALIAS: qwen38-ovms-int8-gpu-262k
     ports:
       - "127.0.0.1:9313:8080"
+
+  qwen38-ovms-int8-npu-1k:
+    <<: *qwen38-ovms-int8-npu
+    container_name: qwen38-ovms-int8-npu-1k
+    profiles: [qwen38-ovms-int8-npu-1k]
+    environment:
+      QWEN_MAX_PROMPT_LEN: "1024"
+      QWEN_MIN_RESPONSE_LEN: "128"
+      QWEN_ALIAS: qwen38-ovms-int8-npu-1k
+    ports:
+      - "127.0.0.1:9314:8080"
 
 networks:
   caddy-backend:
