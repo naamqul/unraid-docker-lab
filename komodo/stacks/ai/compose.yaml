@@ -59,6 +59,31 @@ x-qwen38-openvino-gpu: &qwen38-openvino-gpu
       max-size: 20m
       max-file: "3"
 
+x-qwen38-openvino-f16: &qwen38-openvino-f16
+  image: ghcr.io/ggml-org/llama.cpp:server-openvino@sha256:04862a03faabcb1338d0e17d6cbd1ec6e994e17a69af63ed3da40d55d28e8ce4
+  init: true
+  restart: "no"
+  mem_limit: 40g
+  memswap_limit: 40g
+  entrypoint:
+    - /bin/sh
+    - /bench/openvino-f16-runner.sh
+  volumes:
+    - ./qwen38/openvino-f16-runner.sh:/bench/openvino-f16-runner.sh:ro
+    - /mnt/cache/models/Blackfrost-AI/Qwen3.8-27B-ABLITERATED-GGUF:/models:ro
+  networks:
+    - caddy-backend
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 2m
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "3"
+
 services:
   open-webui:
     container_name: open-webui
@@ -440,6 +465,23 @@ services:
       QWEN_VISION: "1"
     ports:
       - "127.0.0.1:9306:8080"
+
+  qwen38-openvino-f16-cpu-131k-text:
+    <<: *qwen38-openvino-f16
+    container_name: qwen38-openvino-f16-cpu-131k-text
+    profiles: [qwen38-openvino-f16-cpu-131k-text]
+    environment:
+      GGML_OPENVINO_DEVICE: CPU
+      GGML_OPENVINO_STATEFUL_EXECUTION: "0"
+      GGML_OPENVINO_REDUCE_COMPILE_MEM: "1"
+      GGML_OPENVINO_RELEASE_WEIGHTS: "0"
+      GGML_OPENVINO_PROFILING: "1"
+      QWEN_ALIAS: qwen38-openvino-f16-cpu-131k-text
+      QWEN_CONTEXT: "131072"
+      QWEN_MTP: "0"
+      QWEN_VISION: "0"
+    ports:
+      - "127.0.0.1:9307:8080"
 
 networks:
   caddy-backend:
