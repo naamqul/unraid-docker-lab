@@ -579,7 +579,9 @@ The AI Lab section distinguishes `Llama Swap (Arc)` from `Llama Swap
 (Blackwell)`, and also links to Open WebUI and Unsloth Studio. The Remote
 Access section links to Vibepollo's native Windows admin UI. The Blackwell
 entries intentionally omit Arc Docker status fields because they do not run in
-Arc's Docker engine.
+Arc's Docker engine. The Arc card uses a root-level `source=homepage` query to
+bypass browser state cached when that hostname previously served Open WebUI;
+Caddy still owns the redirect to llama-swap's current UI path.
 
 ## Jellyfin
 

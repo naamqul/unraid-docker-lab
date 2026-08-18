@@ -70,7 +70,7 @@
         container: open-webui
     - Llama Swap (Arc):
         icon: mdi-swap-horizontal-bold
-        href: https://llama-swap.arc.bonfireboogie.com/
+        href: https://llama-swap.arc.bonfireboogie.com/?source=homepage
         description: CPU inference router on Arc
         server: arc-docker
         container: gemma4
