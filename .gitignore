@@ -24,6 +24,9 @@ komodo/keys/
 **/mongo-config/
 **/runtime/
 
+# Local retirement evidence may contain historical environment values.
+komodo/stacks/ai/.retired/
+
 # Databases, logs, sockets, and temporary files
 *.db
 *.db-*

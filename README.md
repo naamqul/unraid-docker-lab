@@ -145,6 +145,7 @@ The primary, publicly trusted names are:
 | `searxng.arc.bonfireboogie.com` | `gluetun:8080` |
 | `neko.arc.bonfireboogie.com` | Neko Brave UI/signaling through shared VPN namespace (`gluetun:8081`) |
 | `open-webui.arc.bonfireboogie.com` | Open WebUI through shared VPN namespace (`gluetun:3000`) |
+| `llama-swap.arc.bonfireboogie.com` | Arc CPU llama-swap UI and API (`gemma4:8080`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 | `llama-swap.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:9292` |
 | `unsloth.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:8188` |
@@ -228,7 +229,9 @@ unreliable across operating systems and Tailscale.
      https://komodo.arc.bonfireboogie.com
    ```
 
-The custom image pins Caddy `2.11.4` plus `caddy-dns/porkbun` `v0.3.1`.
+The custom image follows the matched Caddy `2` builder/runtime channel and
+pins `caddy-dns/porkbun` `v0.3.1`, the current plugin release, so custom-module
+builds remain reproducible.
 Porkbun DNS-01 challenges issue a publicly trusted base certificate and
 wildcard certificate without opening WAN ports. New clients need no private
 CA installation. The dormant `.arc.home.arpa` handlers still use Caddy's
@@ -329,9 +332,22 @@ printf '\n' | docker exec -i komodo km execute deploy-stack jellyfin
 printf '\n' | docker exec -i komodo km execute deploy-stack forge-observability
 ```
 
-The `ai` stack deploys Open WebUI. It shares the single Gluetun network
-namespace owned by `general`; Hermes and the former AI-specific Gluetun have
-been retired.
+Active application images follow their upstream moving default (`latest`,
+`main`, `cpu`, or `stable`) unless compatibility or state migration requires a
+narrower channel. The deliberate exceptions are Komodo `:2` because upstream
+does not publish v2 as `latest`; Mongo `:8`, Jellyfin `:10`, and matched Caddy
+`:2` images as stateful/major-version guards; FileBrowser `:stable`;
+Wollomatic socket-proxy `:1` because it has no `latest`; Termix-compatible
+guacd `1.6.0`; and the current Porkbun plugin release. Dormant inference trial
+images remain digest-pinned so archived benchmarks are reproducible. Record
+the resolved version or digest and smoke-test each moving channel whenever it
+is refreshed.
+
+The `ai` stack deploys Open WebUI and the Arc CPU-only Gemma 4 llama-swap
+proxy. Open WebUI shares the single Gluetun network namespace owned by
+`general` and reaches Gemma over `caddy-backend`; Hermes and the former
+AI-specific Gluetun have been retired. The Gemma child unloads after ten idle
+minutes while its small proxy remains available.
 
 The same stack contains opt-in, runner-specific profile services for the
 Arc-local Qwen3.8 evaluation. A normal `deploy-stack ai` omits them. Start only
@@ -459,10 +475,12 @@ Hub has generated its key and per-system token:
 4. Add `COMPOSE_PROFILES=beszel-agent`, redeploy `general`, and use
    `/beszel_socket/beszel.sock` for the system's Host/IP.
 
-Arc and Forge agents use pinned Beszel `0.18.7` images. Each agent receives a
-filtered, GET-only Docker view through a root-only Unix socket; the agent
-itself never mounts the raw Docker socket, and no Docker API TCP port is
-published.
+Arc's Hub and local agent follow Beszel's upstream `latest` channel and were
+verified together at `0.18.8` on 2026-08-17. Forge remains on its independently
+managed `0.18.7` deployment until that host is refreshed through its own
+stack. Each agent receives a filtered, GET-only Docker view through a root-only
+Unix socket; the agent itself never mounts the raw Docker socket, and no Docker
+API TCP port is published.
 
 Forge uses a separate outbound-only agent and Unix-socket proxy. Its tracked
 Compose file and enrollment helper are in
@@ -521,13 +539,13 @@ Termix stores private SSH keys and any configured remote-desktop credentials
 in its encrypted database. For Forge RDP, leave username, password, and domain
 blank so Termix stores no guest login and xRDP prompts at connection time. The
 profile uses direct authentication, `Any` security, certificate-ignore for
-xRDP's self-signed certificate, and viewport-responsive sizing. Stock Termix
-2.5.1 replaces its saved initial dimensions with the current browser canvas
+xRDP's self-signed certificate, and viewport-responsive sizing. Termix replaces
+its saved initial dimensions with the current browser canvas
 size after connection and whenever the canvas changes, so it cannot guarantee
 a fixed 3840x2160 framebuffer. KDE's guest-side display scaling is independent
 of that RDP geometry. Use a native RDP client in a future pass if a fixed 4K
 desktop at 150% scaling is required. Its recording path and name are blank, so
-session recording remains disabled. Termix 2.5.1 may still log a benign
+session recording remains disabled. Termix may still log a benign
 `guac_recording_missing` warning when an unrecorded session closes; this does
 not mean a recording was created. The one-time API key used for provisioning
 was revoked and its handoff file deleted immediately after end-to-end SSH
@@ -557,10 +575,13 @@ configured to use a dedicated dashboard account to show Arc's CPU, memory,
 disk, and network metrics. Store that account only as
 `HOMEPAGE_BESZEL_USERNAME` and `HOMEPAGE_BESZEL_PASSWORD` in the ignored
 `general/.env`; Homepage receives them through `HOMEPAGE_VAR_*` substitutions.
-The AI Lab section also links to llama-swap and Unsloth on Blackwell. The Remote
-Access section links to Vibepollo's native Windows admin UI. These entries
-intentionally omit Arc Docker status fields because they do not run in Arc's
-Docker engine.
+The AI Lab section distinguishes `Llama Swap (Arc)` from `Llama Swap
+(Blackwell)`, and also links to Open WebUI and Unsloth Studio. The Remote
+Access section links to Vibepollo's native Windows admin UI. The Blackwell
+entries intentionally omit Arc Docker status fields because they do not run in
+Arc's Docker engine. The Arc card uses a root-level `source=homepage` query to
+bypass browser state cached when that hostname previously served Open WebUI;
+Caddy still owns the redirect to llama-swap's current UI path.
 
 ## Jellyfin
 

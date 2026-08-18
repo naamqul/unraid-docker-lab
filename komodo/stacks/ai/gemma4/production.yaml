@@ -1,0 +1,52 @@
+healthCheckTimeout: 3600
+logLevel: info
+logToStdout: both
+sendLoadingState: true
+includeAliasesInList: true
+globalTTL: 3600
+startPort: 10001
+
+models:
+  "Gemma (Thinking)":
+    description: CPU-only Gemma 4 multimodal model on Arc with bounded thinking and a 1120-token visual budget.
+    useModelName: Gemma (Thinking)
+    capabilities:
+      in:
+        - text
+        - image
+      out:
+        - text
+      context: 262144
+    filters:
+      setParamsByID:
+        "Gemma (Thinking)":
+          chat_template_kwargs:
+            enable_thinking: true
+        "Gemma (Instruct)":
+          chat_template_kwargs:
+            enable_thinking: false
+    cmd: >-
+      /app/llama-server --port ${PORT}
+      --model /models/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf
+      --mmproj /models/mmproj-Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-BF16.gguf
+      --image-max-tokens 1120
+      --spec-draft-model /models/mtp-gemma-4-26B-A4B-it.gguf
+      --alias "Gemma (Thinking)"
+      --reasoning on --reasoning-budget 512
+      --host 127.0.0.1 --parallel 1 --ctx-size 262144
+      --gpu-layers 0 --no-mmproj-offload
+      --threads 16 --threads-batch 16
+      --cpu-range 0-15 --cpu-strict 1
+      --cpu-range-batch 0-15 --cpu-strict-batch 1
+      --batch-size 2048 --ubatch-size 2048 --flash-attn on
+      --cache-type-k f16 --cache-type-v f16
+      --cache-prompt --cache-ram 0 --ctx-checkpoints 0 --no-cache-idle-slots
+      --spec-type draft-mtp --spec-draft-n-max 1 --spec-draft-p-min 0.0
+      --spec-draft-type-k f16 --spec-draft-type-v f16
+      --spec-draft-threads 16 --spec-draft-threads-batch 16
+      --spec-draft-cpu-range 0-15 --spec-draft-cpu-strict 1
+      --spec-draft-cpu-mask-batch 0xffff --spec-draft-cpu-strict-batch 1
+      --fit off --no-context-shift --no-warmup --mmap
+      --jinja --chat-template-file /app/chat_template.jinja
+      --metrics --slots --perf --timeout 3600
+    checkEndpoint: /health

@@ -3,11 +3,17 @@ name: caddy
 services:
   caddy:
     container_name: caddy
-    image: arc-caddy-porkbun:2.11.4
+    # Follow the current Caddy v2 channel while keeping the custom builder and
+    # runtime on the same major for module/Caddyfile compatibility.
+    image: arc-caddy-porkbun:2
     pull_policy: build
     build:
       context: .
       dockerfile: Dockerfile
+      pull: true
+      # Arc's Docker default bridge is registered but has no docker0 device;
+      # use host networking only for the ephemeral xcaddy build step.
+      network: host
     restart: unless-stopped
     environment:
       CADDY_LAN_IP: ${CADDY_LAN_IP}
@@ -32,7 +38,7 @@ services:
 
   unraid-webui-bridge:
     container_name: unraid-webui-bridge
-    image: caddy:2.11.4
+    image: caddy:2
     restart: unless-stopped
     command:
       - caddy

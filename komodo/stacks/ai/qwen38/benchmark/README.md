@@ -3,6 +3,9 @@
 The completed 2026-08-16 Arc comparison and retained configuration are recorded
 in [`RESULTS-20260816.md`](RESULTS-20260816.md).
 
+The `qwen38-sycl` profile is retained only to reproduce the documented B390
+load failure. Keep it stopped until a newer Intel llama.cpp build is validated.
+
 This directory contains a dependency-free benchmark client for comparing
 multiple OpenAI-compatible Qwen3.8 runners with the same fixed workload. The
 Python client does not start, stop, reconfigure, or download anything. Runner
@@ -44,11 +47,15 @@ Each runner may be one of:
 - `upstream-cpu`
 - `ik-cpu`
 - `openvino-npu`
+- `openvino-cpu`
+- `openvino-gpu`
+- `intel-sycl`
+- `vulkan`
 
 The backend label is metadata plus a validation policy; the harness never
-changes devices. An OpenVINO NPU profile should provide startup-log evidence
-and at least one numeric NPU activity counter. This prevents a CPU fallback
-from being accepted as an NPU result.
+changes devices. OpenVINO NPU and Intel SYCL profiles should provide
+startup-log evidence and at least one numeric accelerator activity counter.
+This prevents a CPU fallback from being accepted as an accelerator result.
 
 Validate the corpus and runner file without making a network request:
 
@@ -83,6 +90,37 @@ running those follow-up sweeps. The current OpenVINO service does not enable
 MTP, so its Arc profile explicitly disables the nonzero-MTP gate and names the
 lane `openvino-npu-feasibility`. It can establish real NPU execution and vision
 compatibility, but it is not an MTP-parity result.
+
+### Native OpenVINO INT8 IR lane
+
+`runners.ovms-int8.json` targets the preconverted Blackfrost VLM with OpenVINO
+Model Server instead of llama.cpp's OpenVINO graph translator. Four separate
+profiles cover CPU/GPU and 131K/262K so only the selected runner needs to be
+started. They use:
+
+- the digest-pinned OVMS 2026.4 weekly build in `compose.yaml`;
+- U8 KV cache pools of 6 GiB at 131K and 10 GiB at 262K;
+- one sequence and disabled prefix caching;
+- a 38 GiB container limit plus the independent 8 GiB host memory watcher;
+- `/v3/chat/completions` and OVMS's `/v3/tokenize` endpoint;
+- artifact context metadata as an upper-bound check, followed by the benchmark's
+  calibrated near-limit prompt as the actual capacity gate.
+
+The launcher requires a relative-path `SHA256SUMS` manifest and verifies every
+artifact file before OVMS starts. It also rejects a non-`qwen3_5` config or an
+artifact whose `max_position_embeddings` is below the requested trial. The IR
+lane retains vision but does not contain the source model's embedded MTP layer,
+so `require_mtp_stats` stays false.
+
+The `qwen38-ovms-int8-npu-1k` profile is deliberately separate. OpenVINO's NPU
+contract requires symmetric INT4/NF4 weights, so the existing INT8 IR is only
+given a bounded compatibility probe. It uses the sequential `VLM` pipeline,
+maps only `/dev/accel/accel0`, refuses startup if `/dev/dri` is visible, and
+pins the compiler to Panther Lake NPU platform `5010` after verifying Arc's
+PCI ID, then caps the first trial at 1024 prompt plus 128 response tokens. A result is
+rejected unless startup evidence names NPU without AUTO/HETERO/CPU/GPU fallback
+and the host NPU busy-time counter increases during inference. It must not be
+reported as a 131K/262K result or as a supported NPU deployment.
 
 Run selected profiles/workloads while debugging:
 
@@ -137,9 +175,10 @@ install -d -m 700 /tmp/qwen38-benchmark
 sh safety-watch.sh qwen38-upstream /tmp/qwen38-benchmark/abort-RUN_ID 8
 ```
 
-Pass that same path to Python with `--abort-file`. Stop the watcher with
-Ctrl-C after the finite run. Valid service arguments are exactly the six
-`qwen38-*` benchmark services in `compose.yaml`. At the threshold, the watcher
+For the native INT8 lane, replace `qwen38-upstream` with the exact selected
+`qwen38-ovms-int8-*` service. Pass that same path to Python with `--abort-file`.
+Stop the watcher with Ctrl-C after the finite run. Valid service arguments are
+explicitly allowlisted in `safety-watch.sh`. At the threshold, the watcher
 touches the abort file and runs only:
 
 ```text

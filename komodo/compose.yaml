@@ -3,7 +3,9 @@ name: komodo
 services:
   mongo:
     container_name: komodo-mongo
-    image: mongo
+    # Keep a major-version guard: Mongo upgrades require adjacent-version and
+    # FCV handling, while :8 still receives the current v8 patch releases.
+    image: mongo:8
     command: --quiet --wiredTigerCacheSizeGB 0.25
     restart: unless-stopped
     labels:
@@ -19,6 +21,7 @@ services:
 
   core:
     container_name: komodo
+    # Komodo v2 is published on :2; upstream's :latest still points to v1.
     image: ghcr.io/moghtech/komodo-core:${COMPOSE_KOMODO_IMAGE_TAG:-2}
     init: true
     restart: unless-stopped
