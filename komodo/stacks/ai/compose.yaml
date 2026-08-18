@@ -216,11 +216,11 @@ services:
         max-file: "3"
 
   # Retained CPU-only Gemma 4 router. llama-swap keeps the proxy small while
-  # idle and unloads the single model process after ten minutes.
+  # idle and unloads the single model process after one hour.
   gemma4:
     <<: *gemma4-production
     container_name: gemma4
-    cpuset: "4-11"
+    cpuset: "0-15"
     ports:
       - "127.0.0.1:9315:8080"
     volumes:

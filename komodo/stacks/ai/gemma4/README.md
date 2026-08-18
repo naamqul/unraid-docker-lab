@@ -12,7 +12,7 @@ only the lightweight proxy resident when the model is idle.
   validated at `sha256:c88bef25891a575e4e2bb09cf7b11940a03b6c253f4fe6b14e87c37046054564`
 - Runtime: llama-swap v250 with upstream llama.cpp b10454,
   revision `4df29be4f4c3673f428170fda944a5b19f743bb8`
-- CPU set and threads: quiet CPUs `4-11`, 8 decode and 8 batch threads
+- CPU set and threads: all CPUs `0-15`, 16 decode and 16 batch threads
 - Context/cache: one native 262,144-token slot with F16 K/V cache
 - Vision: BF16 projector on CPU with a 1,120-token maximum visual budget
 - Batch/microbatch: 2,048 logical and 2,048 physical tokens
@@ -20,7 +20,8 @@ only the lightweight proxy resident when the model is idle.
   `4d7ae4984b7db7de8f8457170b3f1a419ee76d52`
 - Speculation: external MTP head, `draft-mtp`, `n_max=1`, `p_min=0`
 - Resource policy: 32 GiB hard memory limit, no swap, CPU shares 256
-- Model idle TTL: 600 seconds
+- Prompt cache: in-slot reuse enabled; host cache disabled after a negative A/B
+- Model idle TTL: 3,600 seconds
 - Loopback API: `http://127.0.0.1:9315/v1`
 - Open WebUI provider URL: `http://gemma4:8080/v1` on `caddy-backend`
 
@@ -80,7 +81,7 @@ The initial speed-policy production combination also passed with thinking enable
 35.24 seconds for text and 36.26 seconds for vision. The no-thinking alias is
 the latency-oriented alternative.
 
-## Current 262K F16 verification
+## Historical quiet 262K F16 verification
 
 The operator-selected quiet 262K F16 configuration was promoted on 2026-08-17
 and passed a guarded cold load plus both text aliases and the native 4096 x
@@ -166,6 +167,38 @@ availability guard still applies.
 
 Evidence is under
 `/mnt/cache/models/benchmark-results/gemma4-26b-a4b-f9093662/20260817T151000Z-ubatch-b10454`.
+
+## TTFT optimization result
+
+The 2026-08-18 optimization sweep used one warm-up and three measured exact
+4,096-token uncached prefills per candidate on llama.cpp b10454. Every request
+used the same prompt SHA-256
+`960b1729df484ed410c736795478e3d57ccdafe3037b1da4ee97d18133a256d0`:
+
+| CPU / batch / microbatch | Median prefill | Median end to end |
+| --- | ---: | ---: |
+| quiet 4-11 / 2048 / 2048 | 40.20 tok/s | 101.90 s |
+| full 0-15 / 2048 / 2048 | 70.77 tok/s | 57.89 s |
+| full 0-15 / 2560 / 2560 | 70.40 tok/s | 58.20 s |
+| full 0-15 / 3072 / 3072 | 69.65 tok/s | 58.82 s |
+
+The retained all-core 2048 setting is 76.0% faster than the matched quiet
+baseline and is the only candidate below the 60-second cache-miss target.
+Larger batches were slower and consumed more memory, so they were rejected.
+Lunar remained QGA-responsive and the B390 remained bound to `vfio-pci`.
+
+Prompt caching remains enabled explicitly. A same-slot repeat reused 4,095 of
+4,096 tokens and completed in 0.073 seconds. After an A/B/A conversation
+switch, `--cache-ram 0` correctly required a full A prefill. A controlled
+`--cache-ram 2048 --cache-idle-slots` candidate also failed to restore A:
+all 4,096 tokens were recomputed in 58.66 seconds while peak memory increased
+from 18.06 to 18.64 GB. Host prompt caching was therefore rejected; Open WebUI
+context compaction handles cross-conversation history without that allocation.
+
+Evidence is under
+`/mnt/cache/models/benchmark-results/gemma4-26b-a4b-f9093662/20260818T031000Z-ttft-sweep`
+and
+`/mnt/cache/models/benchmark-results/gemma4-26b-a4b-f9093662/20260818T033500Z-cache-ab`.
 
 ## Pinned artifacts
 

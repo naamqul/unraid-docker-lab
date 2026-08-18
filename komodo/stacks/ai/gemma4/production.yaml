@@ -3,12 +3,12 @@ logLevel: info
 logToStdout: both
 sendLoadingState: true
 includeAliasesInList: true
-globalTTL: 600
+globalTTL: 3600
 startPort: 10001
 
 models:
   "Gemma (Thinking)":
-    description: Quiet CPU-only Gemma 4 multimodal model on Arc with bounded thinking and a 1120-token visual budget.
+    description: CPU-only Gemma 4 multimodal model on Arc with bounded thinking and a 1120-token visual budget.
     useModelName: Gemma (Thinking)
     capabilities:
       in:
@@ -36,17 +36,17 @@ models:
       --alias "Gemma (Thinking)"
       --host 127.0.0.1 --parallel 1 --ctx-size 262144
       --gpu-layers 0 --no-mmproj-offload
-      --threads 8 --threads-batch 8
-      --cpu-range 4-11 --cpu-strict 1
-      --cpu-range-batch 4-11 --cpu-strict-batch 1
+      --threads 16 --threads-batch 16
+      --cpu-range 0-15 --cpu-strict 1
+      --cpu-range-batch 0-15 --cpu-strict-batch 1
       --batch-size 2048 --ubatch-size 2048 --flash-attn on
       --cache-type-k f16 --cache-type-v f16
-      --cache-ram 0 --ctx-checkpoints 0 --no-cache-idle-slots
+      --cache-prompt --cache-ram 0 --ctx-checkpoints 0 --no-cache-idle-slots
       --spec-type draft-mtp --spec-draft-n-max 1 --spec-draft-p-min 0.0
       --spec-draft-type-k f16 --spec-draft-type-v f16
-      --spec-draft-threads 8 --spec-draft-threads-batch 8
-      --spec-draft-cpu-range 4-11 --spec-draft-cpu-strict 1
-      --spec-draft-cpu-mask-batch 0x0ff0 --spec-draft-cpu-strict-batch 1
+      --spec-draft-threads 16 --spec-draft-threads-batch 16
+      --spec-draft-cpu-range 0-15 --spec-draft-cpu-strict 1
+      --spec-draft-cpu-mask-batch 0xffff --spec-draft-cpu-strict-batch 1
       --fit off --no-context-shift --no-warmup --mmap
       --jinja --chat-template-file /app/chat_template.jinja
       --metrics --slots --perf --timeout 3600
