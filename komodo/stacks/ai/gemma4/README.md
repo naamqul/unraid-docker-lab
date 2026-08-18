@@ -26,11 +26,12 @@ only the lightweight proxy resident when the model is idle.
 - Open WebUI provider URL: `http://gemma4:8080/v1` on `caddy-backend`
 
 The primary model ID is `Gemma (Thinking)`. Thinking is enabled and
-hard-bounded to 512 tokens so a pathological thought loop cannot consume the
+hard-bounded process-wide to 512 tokens with llama.cpp's reasoning sampler so
+a pathological thought loop cannot consume the
 entire response allowance without producing visible content. llama-swap
 exposes `Gemma (Instruct)` as a request-filter alias on the
-same loaded process; it sets `enable_thinking=false` and a zero reasoning
-budget. The aliases do not load duplicate model copies. The Arc Open WebUI
+same loaded process; it sets `enable_thinking=false`, so the sampler never
+enters a thought block. The aliases do not load duplicate model copies. The Arc Open WebUI
 provider deliberately has no model-ID prefix, so its selector shows exactly
 `Gemma (Thinking)` and `Gemma (Instruct)`.
 The optional llama-swap display-name field is deliberately omitted so clients
@@ -194,6 +195,13 @@ switch, `--cache-ram 0` correctly required a full A prefill. A controlled
 all 4,096 tokens were recomputed in 58.66 seconds while peak memory increased
 from 18.06 to 18.64 GB. Host prompt caching was therefore rejected; Open WebUI
 context compaction handles cross-conversation history without that allocation.
+
+The optimization audit also found that request-filter
+`thinking_budget_tokens` entries did not create a deterministic finite budget
+for this Gemma template: a harder probe consumed all 640 allowed output tokens
+in reasoning and ended by length. Production therefore uses explicit
+`--reasoning on --reasoning-budget 512`; the Instruct alias continues to
+disable the thought channel in the official template.
 
 Evidence is under
 `/mnt/cache/models/benchmark-results/gemma4-26b-a4b-f9093662/20260818T031000Z-ttft-sweep`

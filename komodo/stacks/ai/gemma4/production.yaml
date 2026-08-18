@@ -20,11 +20,9 @@ models:
     filters:
       setParamsByID:
         "Gemma (Thinking)":
-          thinking_budget_tokens: 512
           chat_template_kwargs:
             enable_thinking: true
         "Gemma (Instruct)":
-          thinking_budget_tokens: 0
           chat_template_kwargs:
             enable_thinking: false
     cmd: >-
@@ -34,6 +32,7 @@ models:
       --image-max-tokens 1120
       --spec-draft-model /models/mtp-gemma-4-26B-A4B-it.gguf
       --alias "Gemma (Thinking)"
+      --reasoning on --reasoning-budget 512
       --host 127.0.0.1 --parallel 1 --ctx-size 262144
       --gpu-layers 0 --no-mmproj-offload
       --threads 16 --threads-batch 16
