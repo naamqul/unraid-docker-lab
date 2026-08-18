@@ -119,14 +119,21 @@ arc.bonfireboogie.com {
 }
 
 # Blackwell workloads run through Docker Desktop on the Windows workstation.
-# Caddy is their only LAN-facing TLS entry point; the raw ports are restricted
-# to Arc and Caddy by Windows Firewall.
+# Caddy is their only TLS entry point. llama-swap uses Blackwell's stable
+# Tailnet address because NordVPN currently blocks its direct LAN ingress;
+# the remaining raw LAN ports stay restricted by Windows Firewall.
 *.blackwell.bonfireboogie.com {
 	import public_dns_tls
 
 	@llama_swap host llama-swap.blackwell.bonfireboogie.com
 	handle @llama_swap {
-		reverse_proxy 192.168.50.125:9292 {
+		reverse_proxy 172.20.0.1:9293 {
+			# Avoid Caddy's proxy-loop protection treating the dedicated Caddy
+			# relay as the same hop and returning an empty response body.
+			header_up -Via
+			# Give the relay a stable inner Host matching its private site label;
+			# the public hostname terminates at this outer TLS hop.
+			header_up Host 172.20.0.1:9293
 			# Streaming inference responses must be flushed immediately.
 			flush_interval -1
 		}

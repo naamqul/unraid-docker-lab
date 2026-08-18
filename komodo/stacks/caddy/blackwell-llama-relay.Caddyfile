@@ -1,0 +1,11 @@
+{
+	admin off
+}
+
+http://172.20.0.1:9293 {
+	bind 172.20.0.1
+
+	reverse_proxy http://100.82.136.99:9292 {
+		flush_interval -1
+	}
+}

@@ -50,6 +50,32 @@ services:
     networks:
       - caddy-backend
 
+  blackwell-llama-relay:
+    container_name: blackwell-llama-relay
+    image: caddy:2
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - caddy
+      - run
+      - --config
+      - /etc/caddy/relay.Caddyfile
+      - --adapter
+      - caddyfile
+    volumes:
+      - ./blackwell-llama-relay.Caddyfile:/etc/caddy/relay.Caddyfile:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=-", "http://172.20.0.1:9293/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
 networks:
   lan:
     name: br0

@@ -147,9 +147,15 @@ The primary, publicly trusted names are:
 | `open-webui.arc.bonfireboogie.com` | Open WebUI through shared VPN namespace (`gluetun:3000`) |
 | `llama-swap.arc.bonfireboogie.com` | Arc CPU llama-swap UI and API (`gemma4:8080`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
-| `llama-swap.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:9292` |
+| `llama-swap.blackwell.bonfireboogie.com` | Arc relay at `172.20.0.1:9293` to Blackwell Tailnet listener `100.82.136.99:9292` |
 | `unsloth.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:8188` |
 | `vibepollo.blackwell.bonfireboogie.com` | Blackwell's native Vibepollo admin UI at `192.168.50.125:47990` |
+
+The Blackwell llama-swap route uses the Caddy stack's host-network
+`blackwell-llama-relay` helper because the macvlan Caddy container cannot reach
+Arc's own Tailscale interface. The relay listens only on the internal Docker
+bridge gateway and preserves streaming responses; it is not a separate public
+listener.
 
 The prior `.arc.home.arpa` Caddy handlers remain as dormant migration aliases.
 Their NextDNS rewrites were removed, so they resolve only on a client with an
