@@ -145,7 +145,7 @@ The primary, publicly trusted names are:
 | `searxng.arc.bonfireboogie.com` | `gluetun:8080` |
 | `neko.arc.bonfireboogie.com` | Neko Brave UI/signaling through shared VPN namespace (`gluetun:8081`) |
 | `open-webui.arc.bonfireboogie.com` | Open WebUI through shared VPN namespace (`gluetun:3000`) |
-| `llama-swap.arc.bonfireboogie.com` | Arc Gemma 4 llama-swap UI and API (`gemma4:8080`) |
+| `llama-swap.arc.bonfireboogie.com` | Arc CPU llama-swap UI and API (`gemma4:8080`) |
 | `forge.arc.bonfireboogie.com` | Reserved Caddy `503` placeholder until Forge hosts a web service |
 | `llama-swap.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:9292` |
 | `unsloth.blackwell.bonfireboogie.com` | Blackwell workstation at `192.168.50.125:8188` |
@@ -575,10 +575,11 @@ configured to use a dedicated dashboard account to show Arc's CPU, memory,
 disk, and network metrics. Store that account only as
 `HOMEPAGE_BESZEL_USERNAME` and `HOMEPAGE_BESZEL_PASSWORD` in the ignored
 `general/.env`; Homepage receives them through `HOMEPAGE_VAR_*` substitutions.
-The AI Lab section also links to the Arc Gemma/Open WebUI alias plus
-llama-swap and Unsloth on Blackwell. The Remote Access section links to
-Vibepollo's native Windows admin UI. The Blackwell entries intentionally omit
-Arc Docker status fields because they do not run in Arc's Docker engine.
+The AI Lab section distinguishes `Llama Swap (Arc)` from `Llama Swap
+(Blackwell)`, and also links to Open WebUI and Unsloth Studio. The Remote
+Access section links to Vibepollo's native Windows admin UI. The Blackwell
+entries intentionally omit Arc Docker status fields because they do not run in
+Arc's Docker engine.
 
 ## Jellyfin
 
