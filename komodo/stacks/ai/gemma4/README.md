@@ -171,6 +171,10 @@ Evidence is under
 
 ## TTFT optimization result
 
+The slow interactive trials reported by the user selected `Gemma (Instruct)`.
+They therefore measured prompt prefill and history-reuse latency, not hidden
+thinking-token latency.
+
 The 2026-08-18 optimization sweep used one warm-up and three measured exact
 4,096-token uncached prefills per candidate on llama.cpp b10454. Every request
 used the same prompt SHA-256
