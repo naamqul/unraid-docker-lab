@@ -197,8 +197,9 @@ Prompt caching remains enabled explicitly. A same-slot repeat reused 4,095 of
 switch, `--cache-ram 0` correctly required a full A prefill. A controlled
 `--cache-ram 2048 --cache-idle-slots` candidate also failed to restore A:
 all 4,096 tokens were recomputed in 58.66 seconds while peak memory increased
-from 18.06 to 18.64 GB. Host prompt caching was therefore rejected; Open WebUI
-context compaction handles cross-conversation history without that allocation.
+from 18.06 to 18.64 GB. Host prompt caching was therefore rejected. Automatic
+Open WebUI context compaction is disabled, so clients retain explicit control
+of conversation history and context length.
 
 The optimization audit also found that request-filter
 `thinking_budget_tokens` entries did not create a deterministic finite budget
