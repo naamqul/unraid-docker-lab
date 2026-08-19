@@ -345,31 +345,24 @@ does not publish v2 as `latest`; Mongo `:8`, Jellyfin `:10`, and matched Caddy
 `:2` images as stateful/major-version guards; FileBrowser `:stable`;
 Wollomatic socket-proxy `:1` because it has no `latest`; Termix-compatible
 guacd `1.6.0`; and the current Porkbun plugin release. Dormant inference trial
-images remain digest-pinned so archived benchmarks are reproducible. Record
-the resolved version or digest and smoke-test each moving channel whenever it
-is refreshed.
+images referenced from `archive/` remain digest-pinned so completed benchmarks
+are reproducible. Record the resolved version or digest and smoke-test each
+moving channel whenever it is refreshed.
 
-The `ai` stack deploys Open WebUI and the Arc CPU-only Gemma 4 llama-swap
-proxy. Open WebUI shares the single Gluetun network namespace owned by
-`general` and reaches Gemma over `caddy-backend`; Hermes and the former
-AI-specific Gluetun have been retired. The Gemma child unloads after ten idle
-minutes while its small proxy remains available.
+The production `ai` stack contains exactly Open WebUI and the Arc CPU-only
+Gemma 4 llama-swap proxy. Open WebUI shares the single Gluetun network
+namespace owned by `general` and reaches Gemma over `caddy-backend`; Hermes and
+the former AI-specific Gluetun have been retired. The Gemma child unloads after
+ten idle minutes while its small proxy remains available.
 
-The same stack contains opt-in, runner-specific profile services for the
-Arc-local Qwen3.8 evaluation. A normal `deploy-stack ai` omits them. Start only
-the runner being measured by targeting its service through Komodo, for example
-`deploy-stack ai qwen38-upstream`; stop it before targeting the next runner.
-The CPU candidates use lazy-loading llama-swap proxies and unload an idle model
-after ten minutes. OpenVINO candidates are direct llama-server processes and
-must be stopped explicitly after a trial. All candidates are capped at 38 GiB,
-bind their API only to Arc loopback, and mount the model directory read-only.
-
-Model artifacts live in the cache-only `models` user share. The canonical SMB
-and user-share path is `/mnt/user/models`; containers deliberately mount its
-physical cache path under `/mnt/cache/models` to avoid FUSE overhead while
-memory-mapping large GGUF files. The benchmark pins both the Hugging Face
-revision/checksums and the OCI image digests. Do not activate multiple large
-runners together on this no-swap host.
+The completed Arc-local Qwen3.8 comparison is preserved under
+`archive/arc/qwen38-inference-2026-08`. Its 22 runner definitions, launchers,
+fixed benchmark harness, and result summaries are no longer services or
+profiles in production `ai`, and the archive is not registered with Komodo.
+Any future trial must be reviewed and restored as the distinct
+`arc-qwen38-archive` stack. The cache-only model artifacts and raw benchmark
+bundles remain at their documented `/mnt/user/models` and `/mnt/cache/models`
+paths; this configuration cleanup did not delete them or cached OCI images.
 
 Forge also has a **Files on host** stack named `forge-observability`, on server
 `Forge`, rooted at `/etc/komodo/stacks/forge-observability`. It is deployed and

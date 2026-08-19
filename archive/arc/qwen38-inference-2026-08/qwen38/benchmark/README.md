@@ -6,12 +6,14 @@ in [`RESULTS-20260816.md`](RESULTS-20260816.md).
 The `qwen38-sycl` profile is retained only to reproduce the documented B390
 load failure. Keep it stopped until a newer Intel llama.cpp build is validated.
 
-This directory contains a dependency-free benchmark client for comparing
-multiple OpenAI-compatible Qwen3.8 runners with the same fixed workload. The
-Python client does not start, stop, reconfigure, or download anything. Runner
-lifecycle stays in Komodo/llama-swap. The separate `safety-watch.sh` is an
-opt-in host guard that can stop only one explicitly allowlisted Qwen3.8 service
-through Komodo if host memory crosses the configured floor.
+This archived directory contains a dependency-free benchmark client for
+comparing multiple OpenAI-compatible Qwen3.8 runners with the same fixed
+workload. The Python client does not start, stop, reconfigure, or download
+anything. Runner lifecycle stays in a separately registered Komodo/llama-swap
+archive stack. It is not part of production `ai`. The separate
+`safety-watch.sh` is an opt-in host guard that can stop only one explicitly
+allowlisted Qwen3.8 service through Komodo if host memory crosses the configured
+floor.
 
 The checked-in corpus exercises:
 
@@ -172,7 +174,8 @@ the watcher intentionally refuses to remove or reuse one.
 
 ```bash
 install -d -m 700 /tmp/qwen38-benchmark
-sh safety-watch.sh qwen38-upstream /tmp/qwen38-benchmark/abort-RUN_ID 8
+KOMODO_STACK=arc-qwen38-archive \
+  sh safety-watch.sh qwen38-upstream /tmp/qwen38-benchmark/abort-RUN_ID 8
 ```
 
 For the native INT8 lane, replace `qwen38-upstream` with the exact selected
@@ -182,7 +185,7 @@ explicitly allowlisted in `safety-watch.sh`. At the threshold, the watcher
 touches the abort file and runs only:
 
 ```text
-docker exec komodo km execute -y stop-stack ai 10 SERVICE
+docker exec komodo km execute -y stop-stack "$KOMODO_STACK" 10 SERVICE
 ```
 
 It has no code path for Lunar, the Docker daemon, another stack, or Arc power

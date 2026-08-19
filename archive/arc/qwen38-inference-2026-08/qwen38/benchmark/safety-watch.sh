@@ -13,6 +13,12 @@ usage() {
 service=$1
 abort_file=$2
 min_free_gib=${3:-${MIN_FREE_GIB:-8}}
+komodo_stack=${KOMODO_STACK:-}
+
+if [ "$komodo_stack" != arc-qwen38-archive ]; then
+  printf 'KOMODO_STACK must be arc-qwen38-archive.\n' >&2
+  exit 64
+fi
 
 case "$service" in
   qwen38-upstream|qwen38-sycl|qwen38-vulkan|qwen38-ik|qwen38-openvino-262k-vision|qwen38-openvino-262k-text|qwen38-openvino-131k-vision|qwen38-openvino-131k-text|qwen38-openvino-gpu-262k-text|qwen38-openvino-gpu-131k-text|qwen38-openvino-gpu-262k-mtp1|qwen38-openvino-gpu-131k-mtp1|qwen38-openvino-gpu-262k-vision|qwen38-openvino-gpu-131k-vision|qwen38-openvino-f16-cpu-131k-text|qwen38-openvino-q8-cpukv-cpu-131k-text|qwen38-openvino-f16-gpu-131k-text|qwen38-ovms-int8-cpu-131k|qwen38-ovms-int8-gpu-131k|qwen38-ovms-int8-cpu-262k|qwen38-ovms-int8-gpu-262k|qwen38-ovms-int8-npu-1k)
@@ -82,7 +88,7 @@ while :; do
     if ! touch -- "$abort_file"; then
       printf 'Warning: could not touch abort file; continuing with the scoped Komodo stop.\n' >&2
     fi
-    docker exec komodo km execute -y stop-stack ai 10 "$service"
+    docker exec komodo km execute -y stop-stack "$komodo_stack" 10 "$service"
     status=$?
     if [ "$status" -ne 0 ]; then
       printf 'Komodo failed to stop %s (status %s). No broader stop was attempted.\n' \
